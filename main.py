@@ -69,7 +69,6 @@ def main():
     @bot.middleware_handler(update_types=['message', 'callback_query'])
     def inject_user_data(bot_instance, update):
         """تزریق وضعیت کاربر به پیام جهت حذف کوئری‌های تکراری در فیلترها (Speed Hack)"""
-        import keyboards as kb
         try:
             user_id = None
             target = None
@@ -86,24 +85,6 @@ def main():
                 state, data = db.get_user_state(user_id)
                 setattr(target, 'user_state', state)
                 setattr(target, 'user_data', data)
-                
-                # بررسی وضعیت لاگین
-                is_authenticated = False
-                try:
-                    res = db.supabase.table("user_credentials").select("telegram_id").eq("telegram_id", user_id).execute()
-                    if res.data:
-                        is_authenticated = True
-                except Exception as e:
-                    logger.warning(f"Auth check failed: {e}")
-
-                # بررسی اینکه آیا درخواست مربوط به جریان احراز هویت است
-                is_auth_flow = state.startswith("AUTH")
-                if hasattr(update, 'callback_query') and update.callback_query and update.callback_query.data.startswith("auth_"):
-                    is_auth_flow = True
-
-                if not is_authenticated and not is_auth_flow:
-                    bot_instance.send_message(target.chat.id, "لطفاً ابتدا لاگین یا ثبت‌نام کنید:", reply_markup=kb.get_auth_keyboard())
-                    return # متوقف کردن پردازش
                 
                 # همچنین چک کردن پروفایل کاربر (کش شده) برای ادمین بودن
                 user_info = db.get_user(user_id)

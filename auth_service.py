@@ -45,3 +45,12 @@ def check_credentials(phone_number: str, password: str) -> Optional[int]:
     except Exception as e:
         print(f"Error checking credentials: {e}")
         return None
+
+def is_authenticated(user_id: int) -> bool:
+    """بررسی احراز هویت کاربر"""
+    try:
+        res = db.supabase.table("user_credentials").select("telegram_id").eq("telegram_id", user_id).execute()
+        return bool(res.data)
+    except Exception as e:
+        print(f"Error checking auth status: {e}")
+        return False
