@@ -109,6 +109,38 @@ def register_auth_handlers(bot: TeleBot):
                 user_module.show_main_menu(bot, message.chat.id)
             else:
                 db.set_user_state(message.from_user.id, "AWAITING_FULL_NAME", {"phone": phone, "password": hash_password(password)})
-                bot.send_message(message.chat.id, "👤 نام و نام خانوادگی را وارد کنید:")
+                bot.send_message(message.chat.id, "👤 نام و نام خانوادگی خود را وارد کنید:")
+    def full_name_state_filter(message: Message):
+        state, _ = db.get_user_state(message.from_user.id)
+        return state == "AWAITING_FULL_NAME"
+
+    @bot.message_handler(func=full_name_state_filter)
+    def full_name_handler(message: Message):
+        try:
+            full_name = message.text.strip()
+            user_id = message.from_user.id
+            state, data = db.get_user_state(user_id)
+            phone = data.get("phone")
+            password_hash = data.get("password")
+            
+            if not phone or not password_hash:
+                bot.send_message(message.chat.id, "❌ خطایی در اطلاعات ثبت‌نام رخ داد. لطفاً دوباره /start بزنید.")
+                db.clear_user_state(user_id)
+                return
+
+            # ثبت نهایی کاربر در دیتابیس
+            db.register_or_update_user(
+                user_id=user_id,
+                full_name=full_name,
+                phone_number=phone,
+                password_hash=password_hash,
+                is_verified=True
+            )
+            
+            db.clear_user_state(user_id)
+            bot.send_message(message.chat.id, "✅ ثبت‌نام با موفقیت کامل انجام شد و به حساب خود وارد شدید.")
+            import user as user_module
+            user_module.show_main_menu(bot, message.chat.id)
         except Exception as e:
-            logger.error(f"Error in password_handler: {e}", exc_info=True)
+            logger.error(f"Error in full_name_handler: {e}", exc_info=True)
+            bot.send_message(message.chat.id, "❌ خطای سیستمی در ثبت‌نام. لطفاً دوباره تلاش کنید.")
