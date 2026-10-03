@@ -97,8 +97,7 @@ def main():
 
                 if not is_authenticated and not is_auth_flow:
                     from telebot.types import ReplyKeyboardRemove
-                    bot_instance.send_message(target.chat.id, "👋 لطفاً ابتدا لاگین یا ثبت‌نام کنید:", reply_markup=ReplyKeyboardRemove())
-                    bot_instance.send_message(target.chat.id, "انتخاب کنید:", reply_markup=kb.get_auth_keyboard())
+                    bot_instance.send_message(target.chat.id, "👋 لطفاً برای شروع، وارد حساب خود شوید یا ثبت‌نام کنید:", reply_markup=kb.get_auth_keyboard())
                     return # متوقف کردن پردازش
 
                 # همچنین چک کردن پروفایل کاربر (کش شده) برای ادمین بودن

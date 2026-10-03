@@ -1202,16 +1202,12 @@ def get_freelancer_extra_edit_keyboard(contract_id: str) -> InlineKeyboardMarkup
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 
 def get_auth_keyboard() -> InlineKeyboardMarkup:
-    """کیبورد لاگین و ثبت‌نام با دسترسی به پشتیبانی"""
+    """کیبورد لاگین و ثبت‌نام با دسترسی به پشتیبانی (دکمه‌های پهن)"""
     markup = InlineKeyboardMarkup(row_width=1)
-    markup.add(
-        InlineKeyboardButton("ورود به حساب کاربری", callback_data="auth_login"),
-        InlineKeyboardButton("ثبت‌نام در میانجی", callback_data="auth_register")
-    )
-    markup.add(
-        InlineKeyboardButton("💬 پشتیبانی آنلاین", url="https://t.me/Mianji_Support"),
-        InlineKeyboardButton("🔄 بازیابی رمز عبور", callback_data="auth_recover")
-    )
+    markup.add(InlineKeyboardButton("ورود به حساب کاربری", callback_data="auth_login"))
+    markup.add(InlineKeyboardButton("ثبت‌نام در میانجی", callback_data="auth_register"))
+    markup.add(InlineKeyboardButton("🔄 بازیابی رمز عبور", callback_data="auth_recover"))
+    markup.add(InlineKeyboardButton("💬 پشتیبانی آنلاین", url="https://t.me/Mianji_Support"))
     return markup
 
 def get_cancel_keyboard() -> ReplyKeyboardMarkup:

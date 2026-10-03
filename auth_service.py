@@ -30,7 +30,7 @@ def register_user_credentials(user_id: int, phone_number: str, password: str, fu
         
         return True
     except Exception as e:
-        print(f"Error registering credentials: {e}")
+        print(f"Error registering credentials for user {user_id}: {e}")
         return False
 
 def check_credentials(phone_number: str, password: str) -> Optional[int]:
