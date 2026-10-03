@@ -499,40 +499,6 @@ def register_user_handlers(bot: TeleBot):
                     return
 
         # -----------------------------------------------
-        # بررسی اطلاعات هویتی و نام واقعی
-        # -----------------------------------------------
-        full_name_db = user_info.get("full_name")
-        first_real = user_info.get("first_name_real")
-        last_real = user_info.get("last_name_real")
-
-        # اگر نام تفکیک شده نداریم ولی نام کامل داریم، سعی کنیم تفکیک کنیم
-        if full_name_db and (not first_real or not last_real):
-            parts = full_name_db.strip().split(maxsplit=1)
-            if len(parts) == 2:
-                db.update_user_identity(user.id, first_name_real=parts[0], last_name_real=parts[1])
-                user_info = db.get_user(user.id) # رفرش نهایی
-            else:
-                # اگر فقط یک کلمه بود، فعلاً به عنوان نام کوچک ثبت می‌کنیم
-                db.update_user_identity(user.id, first_name_real=parts[0], last_name_real="")
-                user_info = db.get_user(user.id)
-
-        # قانون میانجی: اگر فیلد full_name در دیتابیس دقیقاً برابر با first_name تلگرام باشد، 
-        # یعنی هنوز نام واقعی (دو کلمه‌ای) وارد نشده است (چون در ثبت‌نام اولیه این دو برابر می‌شوند).
-        telegram_first = user.first_name or ""
-        is_generic_name = (full_name_db == telegram_first) or (full_name_db == "کاربر")
-        
-        if not full_name_db or is_generic_name or len(full_name_db.split()) < 2:
-            db.set_user_state(user.id, "WAITING_PROFILE_FULLNAME")
-            bot.send_message(
-                message.chat.id,
-                "👤 **تکمیل پروفایل الزامی است**\n\n"
-                "برای استفاده از خدمات، لطفاً **نام و نام خانوادگی** حقیقی خود را (مانند: علی محمدی) ارسال کنید:",
-                parse_mode="Markdown",
-                reply_markup=kb.get_cancel_keyboard()
-            )
-            return
-
-        # -----------------------------------------------
         # پیام خوش‌آمدگویی برای کاربران قبلی
         # -----------------------------------------------
         is_verified = user_info.get("is_verified", False) if user_info else False
@@ -563,23 +529,6 @@ def register_user_handlers(bot: TeleBot):
             bot.reply_to(message, "⚠️ لطفاً کمی صبر کنید و مجدداً تلاش کنید.")
             return
         db.clear_user_state(user_id)
-        user_info = db.get_user(user_id)
-        if not user_info or not user_info.get("full_name"):
-            # اگر قبلاً در حالت وارد کردن نام بودیم، اجازه دهیم ادامه یابد
-            current_state, _ = db.get_user_state(user_id)
-            if current_state == "WAITING_PROFILE_FULLNAME":
-                return
-                
-            db.set_user_state(user_id, "WAITING_PROFILE_FULLNAME", {"redirect_to_deal": True})
-            bot.send_message(
-                message.chat.id,
-                "👤 **تکمیل اطلاعات پروفایل**\n\n"
-                "برای ثبت معامله، ابتدا **نام و نام خانوادگی** حقیقی خود را ارسال کنید:",
-                parse_mode="Markdown",
-                reply_markup=kb.get_cancel_keyboard()
-            )
-            return
-
         # بررسی حالت تعمیرات — اگر فعال باشد ثبت معامله جدید مسدود است
         if str(db.get_setting("maintenance_mode", "0")) == "1":
             bot.send_message(
@@ -6908,32 +6857,6 @@ def register_user_handlers(bot: TeleBot):
             bot.send_message(message.chat.id, "❌ خطایی در ذخیره‌سازی رخ داد. لطفاً دوباره تلاش کنید.")
 
     @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "EDITING_FULLNAME")
-    def process_edit_fullname(message: Message):
-        user_id = message.from_user.id
-        full_name = message.text.strip()
-
-        parts = full_name.split()
-        if len(parts) < 2:
-            bot.send_message(
-                message.chat.id,
-                "❌ لطفاً نام و فامیل خود را درست وارد کنید.",
-                parse_mode="Markdown",
-                reply_markup=kb.get_cancel_keyboard()
-            )
-            return
-
-        user_info = db.get_user(user_id)
-        db.update_user_identity(user_id, full_name, user_info.get("national_id", "") if user_info else "")
-        db.clear_user_state(user_id)
-
-        is_admin = (user_id == getattr(config, 'ADMIN_ID', 0) or user_id in getattr(config, 'ADMIN_IDS', []))
-        
-        bot.send_message(
-            message.chat.id,
-            f"✅ نام شما با موفقیت بروزرسانی شد: **{full_name}**",
-            parse_mode="Markdown",
-            reply_markup=kb.get_main_menu(is_admin)
-        )
 
     @bot.callback_query_handler(func=lambda call: call.data == "edit_national_id")
     def edit_national_id_callback(call: CallbackQuery):
