@@ -9,3 +9,5 @@ fpdf2
 httpx
 arabic-reshaper
 python-bidi
+bcrypt
+
