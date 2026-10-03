@@ -2,6 +2,7 @@ import logging
 import re
 import threading
 import uuid
+import unicodedata
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional, List, Union, Tuple
 from functools import lru_cache
@@ -1917,6 +1918,34 @@ def link_telegram_id(phone_number: str, telegram_id: int) -> bool:
     except Exception as e:
         logger.error(f"Error linking telegram_id {telegram_id} to phone {phone_number}: {e}")
         return False
+
+def normalize_phone_number(phone_str: str) -> Optional[str]:
+    """تبدیل انواع فرمت‌های شماره به 09XXXXXXXXX"""
+    if not phone_str: return None
+    normalized = unicodedata.normalize('NFKC', phone_str)
+    digits = "".join([c for c in normalized if c.isdigit()])
+    if digits.startswith(("98", "0098")):
+        digits = "0" + digits[2:] if len(digits) > 10 else digits[2:]
+    elif digits.startswith("09") and len(digits) == 11:
+        pass
+    elif len(digits) == 10 and digits.startswith("9"):
+        digits = "0" + digits
+    else:
+        return None
+    return digits if len(digits) == 11 else None
+
+def ensure_user_exists_basic(user_id: int, username: str = ""):
+    """اطمینان از وجود کاربر برای جلوگیری از خطای Foreign Key"""
+    if not supabase: return
+    try:
+        supabase.table("users").upsert({"id": user_id, "username": username}, on_conflict="id").execute()
+    except Exception as e:
+        logger.error(f"Error ensuring user {user_id}: {e}")
+
+def set_user_state_safe(user_id: int, state: str, data: Dict = None, username: str = ""):
+    """تنظیم وضعیت با اطمینان از وجود کاربر"""
+    ensure_user_exists_basic(user_id, username)
+    set_user_state(user_id, state, data)
 
 db = Database()
 
