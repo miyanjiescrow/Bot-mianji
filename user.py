@@ -398,15 +398,8 @@ def register_user_handlers(bot: TeleBot):
         is_admin = (user.id == getattr(config, 'ADMIN_ID', 0) or user.id in getattr(config, 'ADMIN_IDS', []))
 
         # -----------------------------------------------
-        # بررسی بلاک لیست و احراز هویت
+        # بررسی بلاک لیست
         # -----------------------------------------------
-        if not auth.is_authenticated(user.id):
-            bot.send_message(
-                message.chat.id,
-                "👋 سلام! برای استفاده از خدمات میانجی، لطفاً وارد حساب خود شوید یا ثبت‌نام کنید:",
-                reply_markup=kb.get_auth_keyboard()
-            )
-            return
 
         if user_info.get("is_blacklisted", False):
             bot.send_message(

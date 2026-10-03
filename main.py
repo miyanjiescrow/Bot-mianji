@@ -89,15 +89,10 @@ def main():
                 setattr(target, 'user_data', data)
                 # بررسی وضعیت لاگین
                 is_authenticated = auth.is_authenticated(user_id)
-
-                # بررسی اینکه آیا درخواست مربوط به جریان احراز هویت است
-                is_auth_flow = state.startswith("AUTH")
-                if hasattr(update, 'callback_query') and update.callback_query and update.callback_query.data.startswith("auth_"):
-                    is_auth_flow = True
+                is_auth_flow = state and state.startswith("AUTH")
 
                 if not is_authenticated and not is_auth_flow:
-                    from telebot.types import ReplyKeyboardRemove
-                    bot_instance.send_message(target.chat.id, "👋 لطفاً برای شروع، وارد حساب خود شوید یا ثبت‌نام کنید:", reply_markup=kb.get_auth_keyboard())
+                    bot_instance.send_message(target.chat.id, "👋 لطفاً برای استفاده از میانجی، وارد حساب شوید یا ثبت‌نام کنید:", reply_markup=kb.get_auth_keyboard())
                     return # متوقف کردن پردازش
 
                 # همچنین چک کردن پروفایل کاربر (کش شده) برای ادمین بودن
