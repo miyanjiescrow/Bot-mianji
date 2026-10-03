@@ -86,12 +86,18 @@ def register_auth_handlers(bot: TeleBot):
         except Exception as e:
             logger.error(f"Error in phone_handler: {e}")
 
-    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] in ["AWAITING_NEW_PASSWORD", "AWAITING_LOGIN_PASSWORD"])
+    def password_state_filter(message: Message):
+        state, _ = db.get_user_state(message.from_user.id)
+        logger.info(f"DEBUG: User {message.from_user.id} sending password. Current state: {state}")
+        return state in ["AWAITING_NEW_PASSWORD", "AWAITING_LOGIN_PASSWORD"]
+
+    @bot.message_handler(func=password_state_filter)
     def password_handler(message: Message):
         try:
             password = message.text.strip()
             state, data = db.get_user_state(message.from_user.id)
             phone = data.get("phone")
+            
             if state == "AWAITING_LOGIN_PASSWORD":
                 user = db.get_user_by_phone(phone)
                 if not user or hash_password(password) != user.get('password_hash'):
@@ -105,4 +111,4 @@ def register_auth_handlers(bot: TeleBot):
                 db.set_user_state(message.from_user.id, "AWAITING_FULL_NAME", {"phone": phone, "password": hash_password(password)})
                 bot.send_message(message.chat.id, "👤 نام و نام خانوادگی را وارد کنید:")
         except Exception as e:
-            logger.error(f"Error in password_handler: {e}")
+            logger.error(f"Error in password_handler: {e}", exc_info=True)
