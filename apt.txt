@@ -1,0 +1,15 @@
+# System packages for PDF rendering (ReportLab, WeasyPrint, pdfkit support)
+fontconfig
+libfontconfig1
+libjpeg-dev
+libopenjp2-7-dev
+libz-dev
+libfreetype6-dev
+liblcms2-dev
+libwebp-dev
+libharfbuzz-dev
+libfribidi-dev
+libxcb1-dev
+wkhtmltopdf
+xfonts-75dpi
+xfonts-base

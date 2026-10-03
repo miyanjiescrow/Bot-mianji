@@ -1,0 +1,15 @@
+{
+  "name": "Miyanji Escrow Bot",
+  "version": "1.0.0",
+  "description": "A secure Telegram-based escrow bot for service transactions with a dedicated ambassador panel.",
+  "scripts": {
+    "start": "bash start.sh",
+    "dev": "bash start.sh",
+    "build": "echo 'No build step required for Python'"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "dependencies": {
+  }
+}

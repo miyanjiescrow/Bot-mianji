@@ -1,0 +1,6 @@
+{
+  "name": "Miyanji (میانجی)",
+  "description": "سامانه هوشمند واسطه‌گری امن و ثبت قراردادهای الکترونیک در تلگرام",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
