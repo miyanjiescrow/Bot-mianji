@@ -69,6 +69,7 @@ def main():
     @bot.middleware_handler(update_types=['message', 'callback_query'])
     def inject_user_data(bot_instance, update):
         """تزریق وضعیت کاربر به پیام جهت حذف کوئری‌های تکراری در فیلترها (Speed Hack)"""
+        import keyboards as kb
         try:
             user_id = None
             target = None
