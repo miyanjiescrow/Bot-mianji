@@ -1888,5 +1888,36 @@ class Database:
         self.validate_iranian_sheba = validate_iranian_sheba
         self.supabase = supabase
 
+# ====================================================
+# Auth Helpers (Phone-based)
+# ====================================================
+
+def get_user_by_phone(phone_number: str) -> Optional[Dict[str, Any]]:
+    """یافتن کاربر از طریق شماره موبایل"""
+    if not supabase: return None
+    try:
+        res = supabase.table("users").select("*").eq("phone_number", phone_number).execute()
+        return res.data[0] if res.data else None
+    except Exception as e:
+        logger.error(f"Error fetching user by phone {phone_number}: {e}")
+        return None
+
+def check_phone_exists(phone_number: str) -> bool:
+    """بررسی وجود شماره موبایل در دیتابیس"""
+    user = get_user_by_phone(phone_number)
+    return user is not None
+
+def link_telegram_id(phone_number: str, telegram_id: int) -> bool:
+    """اتصال تلگرام آیدی به حساب کاربری موجود"""
+    if not supabase: return False
+    try:
+        res = supabase.table("users").update({"telegram_id": telegram_id}).eq("phone_number", phone_number).execute()
+        _clear_user_cache(telegram_id)
+        return bool(res.data)
+    except Exception as e:
+        logger.error(f"Error linking telegram_id {telegram_id} to phone {phone_number}: {e}")
+        return False
+
 db = Database()
+
 # بخش‌های اضافی/تغییر یافتهٔ database.py

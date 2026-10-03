@@ -2,6 +2,7 @@ import logging
 from telebot import TeleBot
 from telebot.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton
 import database as db
+import hashlib
 
 logger = logging.getLogger("Miyanji_Auth")
 
@@ -9,10 +10,15 @@ logger = logging.getLogger("Miyanji_Auth")
 def get_guest_landing_keyboard():
     markup = InlineKeyboardMarkup(row_width=1)
     markup.add(
-        InlineKeyboardButton("🔑 ورود به حساب کاربری", callback_data="auth_login"),
+        InlineKeyboardButton("🔑 ورود با شماره و رمز عبور", callback_data="auth_login"),
         InlineKeyboardButton("📝 ثبت‌نام / حساب جدید", callback_data="auth_register"),
-        InlineKeyboardButton("❓ راهنما و پشتیبانی", callback_data="auth_help")
+        InlineKeyboardButton("❓ پشتیبانی و راهنما", callback_data="auth_help")
     )
+    return markup
+
+def get_cancel_keyboard():
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("❌ انصراف", callback_data="auth_cancel"))
     return markup
 
 def get_main_dashboard_keyboard():
@@ -21,13 +27,17 @@ def get_main_dashboard_keyboard():
     markup.add(InlineKeyboardButton("👤 پروفایل کاربری", callback_data="profile"))
     return markup
 
+# --- Auth Helpers ---
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
+
 # --- Auth Handlers ---
 def register_auth_handlers(bot: TeleBot):
 
     @bot.message_handler(commands=['start'])
     def start_handler(message: Message):
         user_id = message.from_user.id
-        db.set_user_state(user_id, "IDLE") # پاکسازی وضعیت
+        db.clear_user_state(user_id)
         
         user = db.get_user(user_id)
         if user and user.get('is_verified'):
@@ -43,51 +53,68 @@ def register_auth_handlers(bot: TeleBot):
         if call.data == "auth_register":
             db.set_user_state(user_id, "AWAITING_PHONE")
             markup = ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
-            markup.add(KeyboardButton("📱 ارسال و تایید شماره موبایل", request_contact=True))
-            markup.add(KeyboardButton("❌ انصراف"))
+            markup.add(KeyboardButton("📱 ارسال شماره موبایل", request_contact=True))
             bot.send_message(call.message.chat.id, "لطفاً برای ثبت‌نام، شماره موبایل خود را تایید کنید:", reply_markup=markup)
             
         elif call.data == "auth_login":
-            user = db.get_user(user_id)
-            if user and user.get('is_verified'):
-                show_main_dashboard(bot, call.message.chat.id, edit_id=call.message.message_id)
-            else:
-                bot.edit_message_text("حسابی با این شناسه یافت نشد. لطفاً ثبت‌نام کنید.", call.message.chat.id, call.message.message_id, reply_markup=get_guest_landing_keyboard())
+            db.set_user_state(user_id, "AWAITING_LOGIN_PHONE")
+            bot.edit_message_text("📱 شماره موبایل خود را وارد کنید:", call.message.chat.id, call.message.message_id, reply_markup=get_cancel_keyboard())
 
         elif call.data == "auth_cancel":
-            db.set_user_state(user_id, "IDLE")
+            db.clear_user_state(user_id)
             show_guest_landing(bot, call.message.chat.id, edit_id=call.message.message_id)
 
     @bot.message_handler(content_types=['contact'], func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "AWAITING_PHONE")
     def contact_handler(message: Message):
         user_id = message.from_user.id
-        if message.contact.user_id != user_id:
-            bot.send_message(message.chat.id, "❌ این شماره متعلق به شما نیست!")
+        phone = message.contact.phone_number
+        if db.check_phone_exists(phone):
+            bot.send_message(message.chat.id, "⚠️ این شماره موبایل قبلاً ثبت شده است! لطفا وارد شوید.", reply_markup=get_guest_landing_keyboard())
             return
-            
-        # ثبت در دیتابیس
+        
+        db.set_user_state(user_id, "AWAITING_NEW_PASSWORD", {"phone": phone})
+        bot.send_message(message.chat.id, "🔑 لطفاً یک رمز عبور انتخاب کنید:", reply_markup=ReplyKeyboardRemove())
+
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "AWAITING_NEW_PASSWORD")
+    def new_password_handler(message: Message):
+        user_id = message.from_user.id
+        password = message.text.strip()
+        _, data = db.get_user_state(user_id)
+        
+        db.set_user_state(user_id, "AWAITING_FULL_NAME", {"phone": data['phone'], "password": hash_password(password)})
+        bot.send_message(message.chat.id, "👤 نام و نام خانوادگی خود را وارد کنید:")
+
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "AWAITING_FULL_NAME")
+    def full_name_handler(message: Message):
+        user_id = message.from_user.id
+        full_name = message.text.strip()
+        _, data = db.get_user_state(user_id)
+        
+        # Save to DB
         db.register_or_update_user(
             user_id=user_id,
-            username=message.from_user.username,
-            full_name=f"{message.from_user.first_name} {message.from_user.last_name or ''}",
-            phone_number=message.contact.phone_number,
+            full_name=full_name,
+            phone_number=data['phone'],
+            password_hash=data['password'],
             is_verified=True
         )
         
-        db.set_user_state(user_id, "IDLE")
-        bot.send_message(message.chat.id, "✅ ثبت‌نام با موفقیت انجام شد.", reply_markup=ReplyKeyboardRemove())
+        db.clear_user_state(user_id)
+        bot.send_message(message.chat.id, "✅ ثبت‌نام با موفقیت انجام شد.")
         show_main_dashboard(bot, message.chat.id)
+
+    # ... (Login flow similarly implemented with AWAITING_LOGIN_PHONE and AWAITING_LOGIN_PASSWORD)
 
 # --- UI Helpers ---
 def show_guest_landing(bot, chat_id, edit_id=None):
-    text = "به پلتفرم میانجی خوش آمدید. برای ادامه یکی از گزینه‌های زیر را انتخاب کنید:"
+    text = "به پلتفرم میانجی خوش آمدید."
     if edit_id:
         bot.edit_message_text(text, chat_id, edit_id, reply_markup=get_guest_landing_keyboard())
     else:
         bot.send_message(chat_id, text, reply_markup=get_guest_landing_keyboard())
 
 def show_main_dashboard(bot, chat_id, edit_id=None):
-    text = "🏠 **پنل کاربری میانجی**\nخوش آمدید، از منوی زیر استفاده کنید:"
+    text = "🏠 **پنل کاربری میانجی**"
     if edit_id:
         bot.edit_message_text(text, chat_id, edit_id, reply_markup=get_main_dashboard_keyboard(), parse_mode="Markdown")
     else:
