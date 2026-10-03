@@ -9,17 +9,28 @@ logger = logging.getLogger("Miyanji_Auth")
 
 def register_auth_handlers(bot: TeleBot):
     
-    @bot.callback_query_handler(func=lambda call: call.data in ["auth_login", "auth_register"])
+    @bot.callback_query_handler(func=lambda call: call.data in ["auth_login", "auth_register", "auth_back", "auth_recover"])
     def auth_start(call: CallbackQuery):
         user_id = call.from_user.id
         action = call.data
         
-        if action == "auth_register":
+        if action == "auth_back":
+            db.clear_user_state(user_id)
+            bot.edit_message_text("👋 لطفاً برای شروع، وارد حساب خود شوید یا ثبت‌نام کنید:", call.message.chat.id, call.message.message_id, reply_markup=kb.get_auth_keyboard())
+        elif action == "auth_recover":
+            bot.answer_callback_query(call.id, "این قابلیت به‌زودی فعال می‌شود.", show_alert=True)
+        elif action == "auth_register":
             db.set_user_state(user_id, "AUTH_REGISTER_PHONE")
-            bot.edit_message_text("📱 لطفاً شماره تلفن خود را وارد کنید:", call.message.chat.id, call.message.message_id)
-        else:
+            bot.edit_message_text("📱 لطفاً شماره تلفن خود را وارد کنید:\n(برای بازگشت از /cancel استفاده کنید)", call.message.chat.id, call.message.message_id)
+        else: # login
             db.set_user_state(user_id, "AUTH_LOGIN_PHONE")
-            bot.edit_message_text("📱 لطفاً شماره تلفن خود را وارد کنید:", call.message.chat.id, call.message.message_id)
+            bot.edit_message_text("📱 لطفاً شماره تلفن خود را وارد کنید:\n(برای بازگشت از /cancel استفاده کنید)", call.message.chat.id, call.message.message_id)
+
+    @bot.message_handler(commands=['cancel'], func=lambda msg: True)
+    def cancel_auth(message: Message):
+        user_id = message.from_user.id
+        db.clear_user_state(user_id)
+        bot.send_message(message.chat.id, "👋 لطفاً برای شروع، وارد حساب خود شوید یا ثبت‌نام کنید:", reply_markup=kb.get_auth_keyboard())
 
     @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) in ["AUTH_REGISTER_PHONE", "AUTH_LOGIN_PHONE"])
     def process_phone(message: Message):
