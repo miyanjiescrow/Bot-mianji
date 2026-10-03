@@ -69,13 +69,31 @@ def main():
 
     # Register handlers
     logger.info("📥 Registering handlers...")
-    # auth_handlers must be registered first to handle /start and callback queries
-    import auth_handlers
-    auth_handlers.register_auth_handlers(bot)
     
-    admin.register_admin_handlers(bot)
-    user.register_user_handlers(bot)
-    admin_settings.register_admin_settings_handlers(bot)
+    try:
+        import auth_handlers
+        auth_handlers.register_auth_handlers(bot)
+        logger.info("✅ Auth handlers registered.")
+    except Exception as e:
+        logger.error(f"💥 Failed to register auth_handlers: {e}", exc_info=True)
+    
+    try:
+        admin.register_admin_handlers(bot)
+        logger.info("✅ Admin handlers registered.")
+    except Exception as e:
+        logger.error(f"💥 Failed to register admin_handlers: {e}", exc_info=True)
+        
+    try:
+        user.register_user_handlers(bot)
+        logger.info("✅ User handlers registered.")
+    except Exception as e:
+        logger.error(f"💥 Failed to register user_handlers: {e}", exc_info=True)
+        
+    try:
+        admin_settings.register_admin_settings_handlers(bot)
+        logger.info("✅ Admin settings handlers registered.")
+    except Exception as e:
+        logger.error(f"💥 Failed to register admin_settings_handlers: {e}", exc_info=True)
 
     # Start reminder service
     reminders.start_reminder_service(bot)
