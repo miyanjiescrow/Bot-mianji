@@ -1199,3 +1199,19 @@ def get_freelancer_extra_edit_keyboard(contract_id: str) -> InlineKeyboardMarkup
     markup.add(InlineKeyboardButton("⚖️ ثبت اعتراض و درخواست داوری", callback_data=f"open_dispute_{contract_id}"))
     markup.add(InlineKeyboardButton("❌ انصراف", callback_data="back_to_menu"))
     return markup
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
+
+def get_auth_keyboard() -> InlineKeyboardMarkup:
+    """کیبورد لاگین و ثبت‌نام"""
+    markup = InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        InlineKeyboardButton("ورود به حساب کاربری", callback_data="auth_login"),
+        InlineKeyboardButton("ثبت‌نام در میانجی", callback_data="auth_register")
+    )
+    return markup
+
+def get_cancel_keyboard() -> ReplyKeyboardMarkup:
+    """کیبورد انصراف"""
+    markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    markup.add(KeyboardButton("❌ انصراف"))
+    return markup

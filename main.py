@@ -86,6 +86,12 @@ def main():
                 setattr(target, 'user_state', state)
                 setattr(target, 'user_data', data)
                 
+                # بررسی وضعیت لاگین
+                is_authenticated = db.supabase.table("user_credentials").select("telegram_id").eq("telegram_id", user_id).execute().data
+                if not is_authenticated and not state.startswith("AUTH"):
+                     bot_instance.send_message(target.chat.id, "لطفاً ابتدا لاگین یا ثبت‌نام کنید:", reply_markup=kb.get_auth_keyboard())
+                     return # متوقف کردن پردازش
+                
                 # همچنین چک کردن پروفایل کاربر (کش شده) برای ادمین بودن
                 user_info = db.get_user(user_id)
                 is_admin = (user_id == config.OWNER_ID or user_id == config.ADMIN_ID or user_id in getattr(config, 'ADMIN_IDS', []))
@@ -98,6 +104,8 @@ def main():
     
     # Register handlers
     logger.info("📥 Registering handlers...")
+    import auth_handlers
+    auth_handlers.register_auth_handlers(bot)
     admin.register_admin_handlers(bot)
     user.register_user_handlers(bot)
     admin_settings.register_admin_settings_handlers(bot)
