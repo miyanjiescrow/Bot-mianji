@@ -11,16 +11,23 @@ def verify_password(password: str, hashed_password: str) -> bool:
     """بررسی صحت رمز عبور"""
     return bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
 
-def register_user_credentials(user_id: int, phone_number: str, password: str) -> bool:
-    """ثبت اطلاعات کاربری در جدول user_credentials"""
+def register_user_credentials(user_id: int, phone_number: str, password: str, full_name: str) -> bool:
+    """ثبت اطلاعات کاربری در جدول user_credentials و بروزرسانی جدول کاربران"""
     try:
+        # هش کردن رمز
         hashed = hash_password(password)
+        
+        # ۱. درج در credentials
         data = {
             "telegram_id": user_id,
             "phone_number": phone_number,
             "password_hash": hashed
         }
         db.supabase.table("user_credentials").insert(data).execute()
+        
+        # ۲. بروزرسانی نام و فامیل در جدول کاربران
+        db.register_or_update_user(user_id, full_name=full_name, phone_number=phone_number)
+        
         return True
     except Exception as e:
         print(f"Error registering credentials: {e}")
