@@ -67,49 +67,12 @@ def main():
     # Increase num_threads for better concurrency
     bot = telebot.TeleBot(bot_token, threaded=True, num_threads=40)
 
-    # --- Middleware for High Speed Processing ---
-    @bot.middleware_handler(update_types=['message', 'callback_query'])
-    def inject_user_data(bot_instance, update):
-        """تزریق وضعیت کاربر به پیام جهت حذف کوئری‌های تکراری در فیلترها (Speed Hack)"""
-        try:
-            user_id = None
-            target = None
-            
-            if hasattr(update, 'message') and update.message:
-                user_id = update.message.from_user.id
-                target = update.message
-            elif hasattr(update, 'from_user') and update.from_user:
-                user_id = update.from_user.id
-                target = update
-            
-            if user_id and target:
-                # دریافت وضعیت فقط یک بار در شروع پردازش هر پیام
-                state, data = db.get_user_state(user_id)
-                setattr(target, 'user_state', state)
-                setattr(target, 'user_data', data)
-                # بررسی وضعیت لاگین
-                is_authenticated = auth.is_authenticated(user_id)
-                state = db.get_user_state(user_id)[0]
-                is_auth_flow = state and state.startswith("AUTH")
-
-                if not is_authenticated and not is_auth_flow:
-                    bot_instance.send_message(target.chat.id, "👋 خوش آمدید! برای شروع کار با میانجی، وارد حساب خود شوید یا اکانت بسازید:", reply_markup=kb.get_auth_keyboard())
-                    return # متوقف کردن پردازش تمام هندلرها
-
-                # همچنین چک کردن پروفایل کاربر (کش شده) برای ادمین بودن
-                user_info = db.get_user(user_id)
-                is_admin = (user_id == config.OWNER_ID or user_id == config.ADMIN_ID or user_id in getattr(config, 'ADMIN_IDS', []))
-                setattr(target, 'is_admin', is_admin)
-                setattr(target, 'user_info', user_info)
-        except Exception as e:
-            logging.error(f"Middleware Error: {e}")
-
-    bot.add_custom_filter(custom_filters.StateFilter(bot))
-    
     # Register handlers
     logger.info("📥 Registering handlers...")
+    # auth_handlers must be registered first to handle /start and callback queries
     import auth_handlers
     auth_handlers.register_auth_handlers(bot)
+    
     admin.register_admin_handlers(bot)
     user.register_user_handlers(bot)
     admin_settings.register_admin_settings_handlers(bot)

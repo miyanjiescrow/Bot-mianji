@@ -1,84 +1,94 @@
 import logging
 from telebot import TeleBot
-from telebot.types import Message, CallbackQuery, ReplyKeyboardRemove
+from telebot.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton
 import database as db
-import auth_service as auth
-import keyboards as kb
 
 logger = logging.getLogger("Miyanji_Auth")
 
+# --- UI Components ---
+def get_guest_landing_keyboard():
+    markup = InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        InlineKeyboardButton("🔑 ورود به حساب کاربری", callback_data="auth_login"),
+        InlineKeyboardButton("📝 ثبت‌نام / حساب جدید", callback_data="auth_register"),
+        InlineKeyboardButton("❓ راهنما و پشتیبانی", callback_data="auth_help")
+    )
+    return markup
+
+def get_main_dashboard_keyboard():
+    markup = InlineKeyboardMarkup(row_width=2)
+    markup.add(InlineKeyboardButton("💰 لیست معاملات من", callback_data="my_trades"))
+    markup.add(InlineKeyboardButton("👤 پروفایل کاربری", callback_data="profile"))
+    return markup
+
+# --- Auth Handlers ---
 def register_auth_handlers(bot: TeleBot):
-    
-    @bot.callback_query_handler(func=lambda call: call.data in ["auth_login", "auth_register", "auth_recover"])
-    def auth_start(call: CallbackQuery):
+
+    @bot.message_handler(commands=['start'])
+    def start_handler(message: Message):
+        user_id = message.from_user.id
+        db.set_user_state(user_id, "IDLE") # پاکسازی وضعیت
+        
+        user = db.get_user(user_id)
+        if user and user.get('is_verified'):
+            show_main_dashboard(bot, message.chat.id)
+        else:
+            show_guest_landing(bot, message.chat.id)
+
+    @bot.callback_query_handler(func=lambda call: call.data in ["auth_login", "auth_register", "auth_help", "auth_cancel"])
+    def auth_callback(call: CallbackQuery):
         user_id = call.from_user.id
-        action = call.data
+        bot.answer_callback_query(call.id)
         
-        if action == "auth_recover":
-            bot.answer_callback_query(call.id, "لطفاً برای بازیابی رمز عبور با پشتیبانی در ارتباط باشید.", show_alert=True)
-            return
+        if call.data == "auth_register":
+            db.set_user_state(user_id, "AWAITING_PHONE")
+            markup = ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
+            markup.add(KeyboardButton("📱 ارسال و تایید شماره موبایل", request_contact=True))
+            markup.add(KeyboardButton("❌ انصراف"))
+            bot.send_message(call.message.chat.id, "لطفاً برای ثبت‌نام، شماره موبایل خود را تایید کنید:", reply_markup=markup)
+            
+        elif call.data == "auth_login":
+            user = db.get_user(user_id)
+            if user and user.get('is_verified'):
+                show_main_dashboard(bot, call.message.chat.id, edit_id=call.message.message_id)
+            else:
+                bot.edit_message_text("حسابی با این شناسه یافت نشد. لطفاً ثبت‌نام کنید.", call.message.chat.id, call.message.message_id, reply_markup=get_guest_landing_keyboard())
 
-        state = "AUTH_REGISTER_PHONE" if action == "auth_register" else "AUTH_LOGIN_PHONE"
-        db.set_user_state(user_id, state)
-        
-        bot.edit_message_text(
-            "📱 شماره موبایل خود را وارد کنید:\n(برای لغو /cancel)", 
-            call.message.chat.id, 
-            call.message.message_id
-        )
+        elif call.data == "auth_cancel":
+            db.set_user_state(user_id, "IDLE")
+            show_guest_landing(bot, call.message.chat.id, edit_id=call.message.message_id)
 
-    @bot.message_handler(commands=['cancel'])
-    def cancel_auth(message: Message):
+    @bot.message_handler(content_types=['contact'], func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "AWAITING_PHONE")
+    def contact_handler(message: Message):
         user_id = message.from_user.id
-        db.clear_user_state(user_id)
-        bot.send_message(message.chat.id, "عملیات لغو شد. انتخاب کنید:", reply_markup=kb.get_auth_keyboard())
-
-    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] in ["AUTH_REGISTER_PHONE", "AUTH_LOGIN_PHONE"])
-    def process_phone(message: Message):
-        user_id = message.from_user.id
-        phone = message.text.strip()
-        
-        if not phone.isdigit() or len(phone) < 10:
-            bot.send_message(message.chat.id, "❌ شماره موبایل نامعتبر است.")
-            return
-
-        state, _ = db.get_user_state(user_id)
-        next_state = "AUTH_REGISTER_PASS" if state == "AUTH_REGISTER_PHONE" else "AUTH_LOGIN_PASS"
-        db.set_user_state(user_id, next_state, {"phone": phone})
-        
-        bot.send_message(message.chat.id, "🔑 رمز عبور خود را وارد کنید:")
-
-    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] in ["AUTH_REGISTER_PASS", "AUTH_LOGIN_PASS"])
-    def process_password(message: Message):
-        user_id = message.from_user.id
-        password = message.text.strip()
-        state, data = db.get_user_state(user_id)
-        phone = data.get("phone")
-        
-        if len(password) < 6:
-            bot.send_message(message.chat.id, "⚠️ رمز عبور باید حداقل ۶ رقم باشد.")
+        if message.contact.user_id != user_id:
+            bot.send_message(message.chat.id, "❌ این شماره متعلق به شما نیست!")
             return
             
-        if state == "AUTH_REGISTER_PASS":
-            db.set_user_state(user_id, "AUTH_REGISTER_NAME", {"phone": phone, "password": password})
-            bot.send_message(message.chat.id, "👤 نام و نام خانوادگی خود را وارد کنید:")
-        else:
-            authorized_id = auth.check_credentials(phone, password)
-            if authorized_id == user_id:
-                db.clear_user_state(user_id)
-                bot.send_message(message.chat.id, "✅ ورود موفقیت‌آمیز بود! به میانجی خوش آمدید.", reply_markup=ReplyKeyboardRemove())
-                # Trigger main menu here, but keeping it simple for now
-            else:
-                bot.send_message(message.chat.id, "❌ شماره موبایل یا رمز عبور اشتباه است.")
-
-    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "AUTH_REGISTER_NAME")
-    def process_fullname(message: Message):
-        user_id = message.from_user.id
-        full_name = message.text.strip()
+        # ثبت در دیتابیس
+        db.register_or_update_user(
+            user_id=user_id,
+            username=message.from_user.username,
+            full_name=f"{message.from_user.first_name} {message.from_user.last_name or ''}",
+            phone_number=message.contact.phone_number,
+            is_verified=True
+        )
         
-        _, data = db.get_user_state(user_id)
-        if auth.register_user_credentials(user_id, data.get("phone"), data.get("password"), full_name):
-            db.clear_user_state(user_id)
-            bot.send_message(message.chat.id, "✅ ثبت‌نام با موفقیت انجام شد.", reply_markup=ReplyKeyboardRemove())
-        else:
-            bot.send_message(message.chat.id, "❌ خطا در ثبت‌نام. لطفاً دوباره تلاش کنید.")
+        db.set_user_state(user_id, "IDLE")
+        bot.send_message(message.chat.id, "✅ ثبت‌نام با موفقیت انجام شد.", reply_markup=ReplyKeyboardRemove())
+        show_main_dashboard(bot, message.chat.id)
+
+# --- UI Helpers ---
+def show_guest_landing(bot, chat_id, edit_id=None):
+    text = "به پلتفرم میانجی خوش آمدید. برای ادامه یکی از گزینه‌های زیر را انتخاب کنید:"
+    if edit_id:
+        bot.edit_message_text(text, chat_id, edit_id, reply_markup=get_guest_landing_keyboard())
+    else:
+        bot.send_message(chat_id, text, reply_markup=get_guest_landing_keyboard())
+
+def show_main_dashboard(bot, chat_id, edit_id=None):
+    text = "🏠 **پنل کاربری میانجی**\nخوش آمدید، از منوی زیر استفاده کنید:"
+    if edit_id:
+        bot.edit_message_text(text, chat_id, edit_id, reply_markup=get_main_dashboard_keyboard(), parse_mode="Markdown")
+    else:
+        bot.send_message(chat_id, text, reply_markup=get_main_dashboard_keyboard(), parse_mode="Markdown")
