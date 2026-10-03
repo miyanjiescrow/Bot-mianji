@@ -180,13 +180,13 @@ def register_or_update_user(
 
         if existing_user:
             update_data = {}
-            if first_name: update_data["first_name"] = first_name
+            if first_name: update_data["full_name"] = first_name # Using full_name instead
             if username: update_data["username"] = username
             if phone_number: update_data["phone_number"] = phone_number
             if full_name: update_data["full_name"] = full_name
             
             # فیلدهای تکمیلی و احراز هویت
-            for key in ["first_name_real", "last_name_real", "is_verified", "national_id", "is_blacklisted", "payment_cards", "wallet_balance", "invited_by"]:
+            for key in ["is_verified", "national_id", "is_blacklisted", "role", "wallet_balance", "payment_cards", "invited_by"]:
                 if key in kwargs:
                     val = kwargs[key]
                     update_data[key] = val
@@ -210,8 +210,6 @@ def register_or_update_user(
                 def _do_update_final():
                     try:
                         supabase.table("users").update(update_data).eq("id", user_id).execute()
-                        # پس از آپدیت نهایی دیتابیس، کش را یکبار دیگر رفرش می‌کنیم تا از همگامی ۱۰۰٪ مطمئن شویم
-                        # (اختیاری، اما برای فیلدهای حساس خوب است)
                     except Exception as e:
                         logger.error(f"Async user update error: {e}")
                 
@@ -224,15 +222,12 @@ def register_or_update_user(
             new_user = {
                 "id": user_id,
                 "username": username or "",
-                "first_name": first_name or "کاربر",
                 "full_name": full_name or f"{first_name or 'کاربر'}",
                 "phone_number": phone_number,
                 "wallet_balance": kwargs.get("wallet_balance", 0.0),
                 "invited_by": invited_by if (invited_by and invited_by != user_id) else None,
                 "role": role,
                 "impersonated_by": None,
-                "first_name_real": kwargs.get("first_name_real"),
-                "last_name_real": kwargs.get("last_name_real"),
                 "is_verified": kwargs.get("is_verified", False),
                 "national_id": kwargs.get("national_id"),
                 "is_blacklisted": kwargs.get("is_blacklisted", False),

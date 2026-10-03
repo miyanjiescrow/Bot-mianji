@@ -12,6 +12,8 @@ import admin_settings
 from telebot import custom_filters
 import database as db
 import reminders
+import auth_service as auth
+import keyboards as kb
 
 # Logging to stdout for Render
 logging.basicConfig(
@@ -85,7 +87,20 @@ def main():
                 state, data = db.get_user_state(user_id)
                 setattr(target, 'user_state', state)
                 setattr(target, 'user_data', data)
-                
+                # بررسی وضعیت لاگین
+                is_authenticated = auth.is_authenticated(user_id)
+
+                # بررسی اینکه آیا درخواست مربوط به جریان احراز هویت است
+                is_auth_flow = state.startswith("AUTH")
+                if hasattr(update, 'callback_query') and update.callback_query and update.callback_query.data.startswith("auth_"):
+                    is_auth_flow = True
+
+                if not is_authenticated and not is_auth_flow:
+                    from telebot.types import ReplyKeyboardRemove
+                    bot_instance.send_message(target.chat.id, "👋 لطفاً ابتدا لاگین یا ثبت‌نام کنید:", reply_markup=ReplyKeyboardRemove())
+                    bot_instance.send_message(target.chat.id, "انتخاب کنید:", reply_markup=kb.get_auth_keyboard())
+                    return # متوقف کردن پردازش
+
                 # همچنین چک کردن پروفایل کاربر (کش شده) برای ادمین بودن
                 user_info = db.get_user(user_id)
                 is_admin = (user_id == config.OWNER_ID or user_id == config.ADMIN_ID or user_id in getattr(config, 'ADMIN_IDS', []))
