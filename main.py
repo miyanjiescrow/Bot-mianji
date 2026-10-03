@@ -89,11 +89,12 @@ def main():
                 setattr(target, 'user_data', data)
                 # بررسی وضعیت لاگین
                 is_authenticated = auth.is_authenticated(user_id)
+                state = db.get_user_state(user_id)[0]
                 is_auth_flow = state and state.startswith("AUTH")
 
                 if not is_authenticated and not is_auth_flow:
-                    bot_instance.send_message(target.chat.id, "👋 لطفاً برای استفاده از میانجی، وارد حساب شوید یا ثبت‌نام کنید:", reply_markup=kb.get_auth_keyboard())
-                    return # متوقف کردن پردازش
+                    bot_instance.send_message(target.chat.id, "👋 خوش آمدید! برای شروع کار با میانجی، وارد حساب خود شوید یا اکانت بسازید:", reply_markup=kb.get_auth_keyboard())
+                    return # متوقف کردن پردازش تمام هندلرها
 
                 # همچنین چک کردن پروفایل کاربر (کش شده) برای ادمین بودن
                 user_info = db.get_user(user_id)

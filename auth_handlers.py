@@ -15,21 +15,22 @@ def register_auth_handlers(bot: TeleBot):
         action = call.data
         
         if action == "auth_recover":
-            bot.answer_callback_query(call.id, "این قابلیت به‌زودی فعال می‌شود.", show_alert=True)
+            bot.answer_callback_query(call.id, "لطفاً برای بازیابی رمز عبور با پشتیبانی در ارتباط باشید.", show_alert=True)
             return
 
         state = "AUTH_REGISTER_PHONE" if action == "auth_register" else "AUTH_LOGIN_PHONE"
         db.set_user_state(user_id, state)
         
         bot.edit_message_text(
-            "📱 شماره تلفن خود را وارد کنید:\n(برای لغو، دستور /cancel را بفرستید)", 
+            "📱 شماره موبایل خود را وارد کنید:\n(برای لغو /cancel)", 
             call.message.chat.id, 
             call.message.message_id
         )
 
     @bot.message_handler(commands=['cancel'])
     def cancel_auth(message: Message):
-        db.clear_user_state(message.from_user.id)
+        user_id = message.from_user.id
+        db.clear_user_state(user_id)
         bot.send_message(message.chat.id, "عملیات لغو شد. انتخاب کنید:", reply_markup=kb.get_auth_keyboard())
 
     @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] in ["AUTH_REGISTER_PHONE", "AUTH_LOGIN_PHONE"])
@@ -38,14 +39,14 @@ def register_auth_handlers(bot: TeleBot):
         phone = message.text.strip()
         
         if not phone.isdigit() or len(phone) < 10:
-            bot.send_message(message.chat.id, "❌ شماره نامعتبر است. مجدداً وارد کنید:")
+            bot.send_message(message.chat.id, "❌ شماره موبایل نامعتبر است.")
             return
 
         state, _ = db.get_user_state(user_id)
         next_state = "AUTH_REGISTER_PASS" if state == "AUTH_REGISTER_PHONE" else "AUTH_LOGIN_PASS"
         db.set_user_state(user_id, next_state, {"phone": phone})
         
-        bot.send_message(message.chat.id, "🔑 رمز عبور را وارد کنید:")
+        bot.send_message(message.chat.id, "🔑 رمز عبور خود را وارد کنید:")
 
     @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] in ["AUTH_REGISTER_PASS", "AUTH_LOGIN_PASS"])
     def process_password(message: Message):
@@ -55,19 +56,20 @@ def register_auth_handlers(bot: TeleBot):
         phone = data.get("phone")
         
         if len(password) < 6:
-            bot.send_message(message.chat.id, "⚠️ رمز عبور حداقل ۶ رقم باشد:")
+            bot.send_message(message.chat.id, "⚠️ رمز عبور باید حداقل ۶ رقم باشد.")
             return
             
         if state == "AUTH_REGISTER_PASS":
             db.set_user_state(user_id, "AUTH_REGISTER_NAME", {"phone": phone, "password": password})
-            bot.send_message(message.chat.id, "👤 نام و نام خانوادگی را وارد کنید:")
+            bot.send_message(message.chat.id, "👤 نام و نام خانوادگی خود را وارد کنید:")
         else:
             authorized_id = auth.check_credentials(phone, password)
             if authorized_id == user_id:
                 db.clear_user_state(user_id)
-                bot.send_message(message.chat.id, "✅ با موفقیت وارد شدید.")
+                bot.send_message(message.chat.id, "✅ ورود موفقیت‌آمیز بود! به میانجی خوش آمدید.", reply_markup=ReplyKeyboardRemove())
+                # Trigger main menu here, but keeping it simple for now
             else:
-                bot.send_message(message.chat.id, "❌ شماره یا رمز عبور اشتباه است.")
+                bot.send_message(message.chat.id, "❌ شماره موبایل یا رمز عبور اشتباه است.")
 
     @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "AUTH_REGISTER_NAME")
     def process_fullname(message: Message):
@@ -77,6 +79,6 @@ def register_auth_handlers(bot: TeleBot):
         _, data = db.get_user_state(user_id)
         if auth.register_user_credentials(user_id, data.get("phone"), data.get("password"), full_name):
             db.clear_user_state(user_id)
-            bot.send_message(message.chat.id, "✅ ثبت‌نام موفق بود.")
+            bot.send_message(message.chat.id, "✅ ثبت‌نام با موفقیت انجام شد.", reply_markup=ReplyKeyboardRemove())
         else:
-            bot.send_message(message.chat.id, "❌ خطا در ثبت‌نام.")
+            bot.send_message(message.chat.id, "❌ خطا در ثبت‌نام. لطفاً دوباره تلاش کنید.")
