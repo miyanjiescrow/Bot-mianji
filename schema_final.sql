@@ -1,9 +1,14 @@
--- 1. جدول اصلی کاربران (Phone-based identity primary key)
-CREATE TABLE IF NOT EXISTS users (
+-- Drop dependent tables first if resetting
+DROP TABLE IF EXISTS user_sessions CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+
+-- 1. جدول اصلی کاربران (Phone-based identity primary key with password support)
+CREATE TABLE users (
     id BIGINT PRIMARY KEY, -- Telegram ID or user internal ID
-    phone_number VARCHAR(15) UNIQUE NOT NULL,
+    phone_number VARCHAR(15) NOT NULL,
     full_name TEXT,
     username TEXT,
+    password_hash TEXT,
     wallet_balance NUMERIC DEFAULT 0,
     role TEXT DEFAULT 'user',
     is_verified BOOLEAN DEFAULT TRUE,
@@ -11,11 +16,15 @@ CREATE TABLE IF NOT EXISTS users (
     invited_by BIGINT,
     payment_cards JSONB DEFAULT '[]',
     is_blacklisted BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+    CONSTRAINT users_phone_unique UNIQUE (phone_number)
 );
 
+-- Ensure explicit unique index for foreign key referencing
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone_number ON users(phone_number);
+
 -- 2. جدول نشست‌های کاربران (User Sessions)
-CREATE TABLE IF NOT EXISTS user_sessions (
+CREATE TABLE user_sessions (
     telegram_id BIGINT PRIMARY KEY,
     phone_number VARCHAR(15) NOT NULL REFERENCES users(phone_number) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
