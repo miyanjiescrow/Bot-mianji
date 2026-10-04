@@ -299,6 +299,12 @@ def register_auth_handlers(bot: TeleBot):
     def login_password_step(message: Message):
         try:
             user_id = message.from_user.id
+            if message.text in ["❌ انصراف", "/cancel", "🔙 انصراف و بازگشت"]:
+                db.clear_user_state(user_id)
+                bot.send_message(message.chat.id, "❌ عملیات لغو شد.", reply_markup=ReplyKeyboardRemove())
+                show_guest_landing(bot, message.chat.id)
+                return
+
             try:
                 bot.delete_message(message.chat.id, message.message_id)
             except:
@@ -306,11 +312,17 @@ def register_auth_handlers(bot: TeleBot):
 
             password = message.text.strip()
             _, data = db.get_user_state(user_id)
-            phone = data.get("phone")
+            phone = data.get("phone") if data else None
+
+            if not phone:
+                bot.send_message(message.chat.id, "⚠️ نشست شما منقضی شد. لطفاً دوباره از ابتدا وارد شوید.", reply_markup=ReplyKeyboardRemove())
+                db.clear_user_state(user_id)
+                show_guest_landing(bot, message.chat.id)
+                return
 
             user = db.get_user_by_phone(phone)
             if not user or user.get("password_hash") != hash_password(password):
-                bot.send_message(message.chat.id, "❌ رمز عبور اشتباه است! لطفاً دوباره تلاش کنید:")
+                bot.send_message(message.chat.id, "❌ رمز عبور اشتباه است! لطفاً دوباره تلاش کنید:", reply_markup=kb.get_cancel_keyboard())
                 return
 
             db.link_telegram_id(phone, user_id)

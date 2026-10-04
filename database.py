@@ -2007,8 +2007,22 @@ def link_telegram_id(phone_number: str, telegram_id: int) -> bool:
     """اتصال تلگرام آیدی به حساب کاربری موجود"""
     if not supabase: return False
     try:
-        res = supabase.table("users").update({"telegram_id": telegram_id, "is_verified": True}).eq("phone_number", phone_number).execute()
+        user = get_user_by_phone(phone_number)
+        if user:
+            old_id = user.get("id")
+            if old_id and old_id != telegram_id:
+                user_data = dict(user)
+                user_data["id"] = telegram_id
+                user_data["is_verified"] = True
+                supabase.table("users").upsert(user_data).execute()
+                try:
+                    supabase.table("users").delete().eq("id", old_id).execute()
+                except:
+                    pass
+            else:
+                supabase.table("users").update({"is_verified": True}).eq("phone_number", phone_number).execute()
         _clear_user_cache(telegram_id)
+        set_user_session(telegram_id, phone_number)
         return True
     except Exception as e:
         logger.error(f"Error linking telegram_id {telegram_id} to phone {phone_number}: {e}")
