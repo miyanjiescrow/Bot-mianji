@@ -14,8 +14,8 @@ def get_main_menu(is_admin: bool = False, is_verified: bool = False) -> ReplyKey
         KeyboardButton("📜 لیست معاملات من")
     )
     
-    # دکمه احراز هویت و حساب کاربری
-    verify_label = "🪪 احراز هویت "
+    # دکمه پروفایل کاربری
+    verify_label = "👤 پروفایل کاربری"
     
     # ردیف ۲
     markup.row(

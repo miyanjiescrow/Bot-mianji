@@ -101,7 +101,7 @@ def register_auth_handlers(bot: TeleBot):
             logger.error(f"Error in auth_callbacks: {e}", exc_info=True)
 
     # --- REGISTRATION FLOW ---
-    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "REG_PHONE")
+    @bot.message_handler(content_types=['text', 'contact'], func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "REG_PHONE")
     def reg_phone_step(message: Message):
         try:
             user_id = message.from_user.id
