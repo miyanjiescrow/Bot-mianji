@@ -1564,7 +1564,11 @@ def register_user_handlers(bot: TeleBot):
 
             db.clear_user_state(user_id)
             cid = contract.get("contract_id") or contract_id
-            bot_username = getattr(config, 'BOT_USERNAME', 'MiyanjiBot')
+            try:
+                me = bot.get_me()
+                bot_username = me.username if me and me.username else getattr(config, 'BOT_USERNAME', 'MiyanjiBot')
+            except:
+                bot_username = getattr(config, 'BOT_USERNAME', 'MiyanjiBot')
             share_link = f"https://t.me/{bot_username}?start=c_{cid}"
         except Exception as e:
             logger.error(f"Error in post-creation processes: {e}")

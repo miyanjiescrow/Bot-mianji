@@ -638,7 +638,7 @@ def get_contract_action_keyboard(contract_id: str, user_role: str, status: str, 
     if show_terms_button:
         markup.add(InlineKeyboardButton("📖 مشاهده متن کامل و تعهدات", callback_data=f"view_contract_terms:{contract_id}"))
     
-    markup.add(InlineKeyboardButton("📩 دریافت فایل PDF", callback_data=f"get_pdf_{contract_id}"))
+    markup.add(InlineKeyboardButton("📑 پیش‌نمایش و دریافت PDF", callback_data=f"get_pdf_{contract_id}"))
     return markup
 
 def get_read_contract_keyboard(contract_id: str) -> InlineKeyboardMarkup:
@@ -651,7 +651,7 @@ def get_invite_overview_keyboard(contract_id: str) -> InlineKeyboardMarkup:
     """کیبورد پیام آگاهی اولیه برای نفر دوم"""
     markup = InlineKeyboardMarkup(row_width=1)
     markup.add(InlineKeyboardButton("👁 مشاهده تعهدات و امضای قرارداد", callback_data=f"view_contract_terms:{contract_id}"))
-    markup.add(InlineKeyboardButton("📩 دریافت فایل PDF", callback_data=f"get_pdf_{contract_id}"))
+    markup.add(InlineKeyboardButton("📑 پیش‌نمایش و دریافت PDF", callback_data=f"get_pdf_{contract_id}"))
     markup.add(InlineKeyboardButton("❌ لغو معامله", callback_data=f"cancel_contract_{contract_id}"))
     return markup
 
