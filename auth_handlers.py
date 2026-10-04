@@ -144,6 +144,7 @@ def register_auth_handlers(bot: TeleBot):
 
             elif call.data == "profile_logout":
                 db.clear_user_state(user_id)
+                db.clear_user_session(user_id)
                 try:
                     if db.supabase:
                         db.supabase.table("users").update({"telegram_id": None, "is_verified": False}).eq("id", user_id).execute()
@@ -247,6 +248,7 @@ def register_auth_handlers(bot: TeleBot):
                 password_hash=pwd_hash,
                 is_verified=True
             )
+            db.set_user_session(user_id, phone)
 
             db.clear_user_state(user_id)
             bot.send_message(message.chat.id, "✅ **ثبت‌نام با موفقیت کامل انجام شد!**", parse_mode="Markdown")
@@ -304,6 +306,7 @@ def register_auth_handlers(bot: TeleBot):
                 return
 
             db.link_telegram_id(phone, user_id)
+            db.set_user_session(user_id, phone)
             db.clear_user_state(user_id)
             
             bot.send_message(message.chat.id, "✅ **ورود موفقیت‌آمیز بود!**", parse_mode="Markdown")
