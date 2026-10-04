@@ -1911,10 +1911,10 @@ class Database:
 # ====================================================
 
 def get_current_user_phone(telegram_id: int) -> Optional[str]:
-    """دریافت شماره تلفن نشست فعال برای یک telegram_id"""
+    """دریافت شماره تلفن نشست فعال برای یک telegram_id از جدول users"""
     if not supabase: return None
     try:
-        res = supabase.table("sessions").select("phone_number").eq("telegram_id", telegram_id).execute()
+        res = supabase.table("users").select("phone_number").eq("id", telegram_id).execute()
         if res.data and len(res.data) > 0:
             return res.data[0].get("phone_number")
         return None
@@ -1923,25 +1923,29 @@ def get_current_user_phone(telegram_id: int) -> Optional[str]:
         return None
 
 def set_user_session(telegram_id: int, phone_number: str) -> bool:
-    """ثبت یا بروزرسانی نشست فعال کاربر"""
+    """ثبت یا بروزرسانی نشست فعال کاربر در جدول users"""
     if not supabase: return False
     try:
         norm_phone = normalize_phone_number(phone_number) or phone_number
-        supabase.table("sessions").upsert({
-            "telegram_id": telegram_id,
+        supabase.table("users").upsert({
+            "id": telegram_id,
             "phone_number": norm_phone,
-            "updated_at": "now()"
+            "is_verified": True
         }).execute()
+        _clear_user_cache(telegram_id)
         return True
     except Exception as e:
         logger.error(f"Error setting session for {telegram_id}: {e}")
         return False
 
 def clear_user_session(telegram_id: int) -> bool:
-    """خروج از حساب (حذف نشست فعال)"""
+    """خروج از حساب (پاکسازی شماره تلفن نشست از جدول users)"""
     if not supabase: return False
     try:
-        supabase.table("sessions").delete().eq("telegram_id", telegram_id).execute()
+        supabase.table("users").update({
+            "phone_number": None,
+            "is_verified": False
+        }).eq("id", telegram_id).execute()
         _clear_user_cache(telegram_id)
         return True
     except Exception as e:
