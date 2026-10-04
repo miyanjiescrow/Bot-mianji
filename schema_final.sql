@@ -2,13 +2,14 @@
 DROP TABLE IF EXISTS user_sessions CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 
--- 1. جدول اصلی کاربران (Phone-based identity primary key with password support)
+-- 1. جدول اصلی کاربران (Phone-based identity with password_hash and password_reset_token)
 CREATE TABLE users (
     id BIGINT PRIMARY KEY, -- Telegram ID or user internal ID
     phone_number VARCHAR(15) NOT NULL,
     full_name TEXT,
     username TEXT,
     password_hash TEXT,
+    password_reset_token TEXT,
     wallet_balance NUMERIC DEFAULT 0,
     role TEXT DEFAULT 'user',
     is_verified BOOLEAN DEFAULT TRUE,
