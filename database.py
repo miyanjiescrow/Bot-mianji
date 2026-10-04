@@ -1068,12 +1068,15 @@ def ensure_user_exists(user_id: int) -> bool:
     """اطمینان از وجود کاربر در جدول users (اگر نباشد، یک رکورد خام ایجاد می‌کند)"""
     if not supabase: return False
     try:
-        # استفاده از upsert به جای insert برای جلوگیری از خطای Duplicate Key در شرایط رقابتی
-        # فیلد id همان primary key است، پس اگر باشد آپدیت می‌شود (که تغییری نمی‌کند چون فقط فیلدهای پایه است)
+        res = supabase.table("users").select("id").eq("id", user_id).execute()
+        if res.data and len(res.data) > 0:
+            return True
+            
+        fallback_phone = f"98900{abs(user_id) % 100000000:08d}"
         supabase.table("users").upsert({
             "id": user_id,
-            "first_name": "کاربر",
-            "last_name": "جدید",
+            "phone_number": fallback_phone,
+            "full_name": "کاربر میانجی",
             "role": "user"
         }, on_conflict="id").execute()
         return True
