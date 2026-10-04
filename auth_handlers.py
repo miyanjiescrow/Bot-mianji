@@ -128,7 +128,7 @@ def register_auth_handlers(bot: TeleBot):
                 bot.edit_message_text("🔑 **ورود به حساب کاربری**\n\nلطفاً شماره موبایل ثبت‌شده خود را وارد کنید:", chat_id, call.message.message_id, reply_markup=get_cancel_keyboard(), parse_mode="Markdown")
                 
             elif call.data == "auth_help":
-                bot.answer_callback_query(call.id, "برای راهنمایی با پشتیبانی میانجی در ارتباط باشید.", show_alert=True)
+                bot.answer_callback_query(call.id, "برای راهنمایی با پشتیبانی میانجی در ارتباط باشید: @mianji_support", show_alert=True)
 
             elif call.data == "profile_logout":
                 db.clear_user_state(user_id)
@@ -192,6 +192,8 @@ def register_auth_handlers(bot: TeleBot):
             if len(password) < 4:
                 bot.send_message(message.chat.id, "⚠️ رمز عبور باید حداقل ۴ کاراکتر باشد. دوباره وارد کنید:")
                 return
+
+            bot.send_message(message.chat.id, "✅ رمز عبور با موفقیت دریافت شد.")
 
             _, data = db.get_user_state(user_id)
             data["password_hash"] = hash_password(password)

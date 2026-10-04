@@ -23,12 +23,6 @@ def get_main_menu(is_admin: bool = False, is_verified: bool = False) -> ReplyKey
         KeyboardButton("💳 کیف پول و اعتبار")
     )
     
-    # ردیف ۳ - وب‌اپلیکیشن (جدید)
-    from telebot.types import WebAppInfo
-    from config import config
-    # آدرس وب‌اپلیکیشن به صورت داینامیک از تنظیمات خوانده می‌شود
-    webapp_url = config.APP_URL
-    markup.row(KeyboardButton("🌐 مشاهده داشبورد معاملات (وب)", web_app=WebAppInfo(url=webapp_url)))
 
     # ردیف ۴ - تمام عرض
     markup.row(KeyboardButton("🎧 پشتیبانی و راهنمای استفاده 📖"))
