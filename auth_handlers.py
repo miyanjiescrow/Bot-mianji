@@ -161,11 +161,19 @@ def register_auth_handlers(bot: TeleBot):
 
             elif call.data == "profile_change_pwd":
                 db.set_user_state(user_id, "CHANGE_PWD_OLD", {})
-                bot.edit_message_text("🔑 لطفاً **رمز عبور فعلی** خود را وارد کنید:", chat_id, call.message.message_id, parse_mode="Markdown")
+                try:
+                    bot.delete_message(chat_id, call.message.message_id)
+                except:
+                    pass
+                bot.send_message(chat_id, "🔑 لطفاً **رمز عبور فعلی** خود را وارد کنید:", reply_markup=kb.get_cancel_keyboard(), parse_mode="Markdown")
 
             elif call.data == "profile_change_phone":
                 db.set_user_state(user_id, "CHANGE_PHONE_NEW", {})
-                bot.edit_message_text("📱 لطفاً **شماره موبایل جدید** خود را وارد کنید:", chat_id, call.message.message_id, parse_mode="Markdown")
+                try:
+                    bot.delete_message(chat_id, call.message.message_id)
+                except:
+                    pass
+                bot.send_message(chat_id, "📱 لطفاً **شماره موبایل جدید** خود را وارد کنید:", reply_markup=kb.get_cancel_keyboard(), parse_mode="Markdown")
 
         except Exception as e:
             logger.error(f"Error in callbacks: {e}", exc_info=True)
@@ -320,6 +328,12 @@ def register_auth_handlers(bot: TeleBot):
     def change_pwd_old_step(message: Message):
         try:
             user_id = message.from_user.id
+            if message.text in ["❌ انصراف", "/cancel", "🔙 انصراف و بازگشت"]:
+                db.clear_user_state(user_id)
+                bot.send_message(message.chat.id, "❌ عملیات لغو شد.", reply_markup=ReplyKeyboardRemove())
+                show_main_dashboard(bot, message.chat.id, user_id)
+                return
+
             try:
                 bot.delete_message(message.chat.id, message.message_id)
             except:
@@ -329,11 +343,11 @@ def register_auth_handlers(bot: TeleBot):
             user = db.get_user(user_id)
             
             if not user or user.get("password_hash") != hash_password(pwd):
-                bot.send_message(message.chat.id, "❌ رمز عبور فعلی اشتباه است. دوباره وارد کنید:")
+                bot.send_message(message.chat.id, "❌ رمز عبور فعلی اشتباه است. دوباره وارد کنید:", reply_markup=kb.get_cancel_keyboard())
                 return
 
             db.set_user_state(user_id, "CHANGE_PWD_NEW", {})
-            bot.send_message(message.chat.id, "🔑 لطفاً **رمز عبور جدید** خود را وارد کنید:")
+            bot.send_message(message.chat.id, "🔑 لطفاً **رمز عبور جدید** خود را وارد کنید:", reply_markup=kb.get_cancel_keyboard(), parse_mode="Markdown")
         except Exception as e:
             logger.error(f"Error in change_pwd_old_step: {e}", exc_info=True)
 
@@ -341,6 +355,12 @@ def register_auth_handlers(bot: TeleBot):
     def change_pwd_new_step(message: Message):
         try:
             user_id = message.from_user.id
+            if message.text in ["❌ انصراف", "/cancel", "🔙 انصراف و بازگشت"]:
+                db.clear_user_state(user_id)
+                bot.send_message(message.chat.id, "❌ عملیات لغو شد.", reply_markup=ReplyKeyboardRemove())
+                show_main_dashboard(bot, message.chat.id, user_id)
+                return
+
             try:
                 bot.delete_message(message.chat.id, message.message_id)
             except:
@@ -348,7 +368,7 @@ def register_auth_handlers(bot: TeleBot):
 
             new_pwd = message.text.strip()
             if len(new_pwd) < 4:
-                bot.send_message(message.chat.id, "⚠️ رمز عبور جدید باید حداقل ۴ کاراکتر باشد:")
+                bot.send_message(message.chat.id, "⚠️ رمز عبور جدید باید حداقل ۴ کاراکتر باشد:", reply_markup=kb.get_cancel_keyboard())
                 return
 
             new_hash = hash_password(new_pwd)
@@ -365,16 +385,22 @@ def register_auth_handlers(bot: TeleBot):
     def change_phone_new_step(message: Message):
         try:
             user_id = message.from_user.id
+            if message.text in ["❌ انصراف", "/cancel", "🔙 انصراف و بازگشت"]:
+                db.clear_user_state(user_id)
+                bot.send_message(message.chat.id, "❌ عملیات لغو شد.", reply_markup=ReplyKeyboardRemove())
+                show_main_dashboard(bot, message.chat.id, user_id)
+                return
+
             raw_phone = message.contact.phone_number if message.contact else message.text
             phone = normalize_phone(raw_phone)
             
             if not phone:
-                bot.send_message(message.chat.id, "⚠️ شماره موبایل نامعتبر است. لطفاً فرمت صحیح را وارد کنید:")
+                bot.send_message(message.chat.id, "⚠️ شماره موبایل نامعتبر است. لطفاً فرمت صحیح را وارد کنید:", reply_markup=kb.get_cancel_keyboard())
                 return
 
             existing = db.get_user_by_phone(phone)
             if existing and existing.get("id") != user_id:
-                bot.send_message(message.chat.id, "⚠️ این شماره تلفن متعلق به کاربر دیگری است!")
+                bot.send_message(message.chat.id, "⚠️ این شماره تلفن متعلق به کاربر دیگری است!", reply_markup=kb.get_cancel_keyboard())
                 return
 
             db.register_or_update_user(user_id=user_id, phone_number=phone)

@@ -187,7 +187,7 @@ def register_or_update_user(
             if full_name: update_data["full_name"] = full_name
             
             # فیلدهای تکمیلی و احراز هویت
-            for key in ["is_verified", "national_id", "is_blacklisted", "role", "wallet_balance", "payment_cards", "invited_by"]:
+            for key in ["is_verified", "national_id", "is_blacklisted", "role", "wallet_balance", "payment_cards", "invited_by", "password_hash"]:
                 if key in kwargs:
                     val = kwargs[key]
                     update_data[key] = val
@@ -225,6 +225,7 @@ def register_or_update_user(
                 "username": username or "",
                 "full_name": full_name or f"{first_name or 'کاربر'}",
                 "phone_number": phone_number,
+                "password_hash": kwargs.get("password_hash"),
                 "wallet_balance": kwargs.get("wallet_balance", 0.0),
                 "invited_by": invited_by if (invited_by and invited_by != user_id) else None,
                 "role": role,
