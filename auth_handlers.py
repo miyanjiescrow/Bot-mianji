@@ -182,6 +182,12 @@ def register_auth_handlers(bot: TeleBot):
     def reg_password_step(message: Message):
         try:
             user_id = message.from_user.id
+            # حذف پیام حاوی رمز عبور برای حفظ امنیت و عدم نمایش متن رمزی در چت
+            try:
+                bot.delete_message(message.chat.id, message.message_id)
+            except:
+                pass
+
             password = message.text.strip()
             if len(password) < 4:
                 bot.send_message(message.chat.id, "⚠️ رمز عبور باید حداقل ۴ کاراکتر باشد. دوباره وارد کنید:")
@@ -258,6 +264,11 @@ def register_auth_handlers(bot: TeleBot):
     def login_password_step(message: Message):
         try:
             user_id = message.from_user.id
+            try:
+                bot.delete_message(message.chat.id, message.message_id)
+            except:
+                pass
+
             password = message.text.strip()
             _, data = db.get_user_state(user_id)
             phone = data.get("phone")
@@ -281,6 +292,11 @@ def register_auth_handlers(bot: TeleBot):
     def change_pwd_old_step(message: Message):
         try:
             user_id = message.from_user.id
+            try:
+                bot.delete_message(message.chat.id, message.message_id)
+            except:
+                pass
+
             pwd = message.text.strip()
             user = db.get_user(user_id)
             
@@ -297,6 +313,11 @@ def register_auth_handlers(bot: TeleBot):
     def change_pwd_new_step(message: Message):
         try:
             user_id = message.from_user.id
+            try:
+                bot.delete_message(message.chat.id, message.message_id)
+            except:
+                pass
+
             new_pwd = message.text.strip()
             if len(new_pwd) < 4:
                 bot.send_message(message.chat.id, "⚠️ رمز عبور جدید باید حداقل ۴ کاراکتر باشد:")
