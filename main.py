@@ -101,10 +101,10 @@ def main():
     logger.info("🤖 Bot is ready to poll.")
     try:
         logger.info("🧹 Removing any existing webhooks or stale connections...")
-        bot.remove_webhook()
+        bot.delete_webhook(drop_pending_updates=True)
         time.sleep(1)
     except Exception as e:
-        logger.warning(f"⚠️ Could not remove webhook: {e}")
+        logger.warning(f"⚠️ Could not delete webhook: {e}")
 
     while True:
         try:
