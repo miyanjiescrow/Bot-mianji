@@ -543,18 +543,30 @@ def get_user(user_id: int) -> Optional[Dict[str, Any]]:
     global _user_info_cache, _user_info_last_update
     
     now = datetime.now()
-    # اگر اطلاعات در کش بود و کمتر از ۵ دقیقه از عمرش گذشته بود، از رم بخوان
     if user_id in _user_info_cache:
+        cached = _user_info_cache[user_id]
         last_upd = _user_info_last_update.get(user_id, datetime.min)
-        if (now - last_upd).total_seconds() < 300:
-            return _user_info_cache[user_id]
+        if (now - last_upd).total_seconds() < 300 and cached.get("telegram_id") == user_id and cached.get("is_verified"):
+            return cached
 
     if not supabase:
         return None
     try:
-        res = supabase.table("users").select("*").eq("id", user_id).execute()
+        # جستجو بر اساس telegram_id فعال
+        res = supabase.table("users").select("*").eq("telegram_id", user_id).execute()
         if res.data:
             user_data = res.data[0]
+            _user_info_cache[user_id] = user_data
+            _user_info_last_update[user_id] = now
+            return user_data
+        
+        # بررسی رکورد قدیمی که ممکن است log out شده باشد
+        res_id = supabase.table("users").select("*").eq("id", user_id).execute()
+        if res_id.data:
+            user_data = res_id.data[0]
+            if user_data.get("telegram_id") is None or user_data.get("telegram_id") != user_id:
+                _user_info_cache.pop(user_id, None)
+                return None
             _user_info_cache[user_id] = user_data
             _user_info_last_update[user_id] = now
             return user_data
@@ -1894,11 +1906,23 @@ class Database:
 # ====================================================
 
 def get_user_by_phone(phone_number: str) -> Optional[Dict[str, Any]]:
-    """یافتن کاربر از طریق شماره موبایل"""
+    """یافتن کاربر از طریق شماره موبایل (با پشتیبانی از انواع فرمت‌ها)"""
     if not supabase: return None
     try:
-        res = supabase.table("users").select("*").eq("phone_number", phone_number).execute()
-        return res.data[0] if res.data else None
+        digits = "".join([c for c in phone_number if c.isdigit()])
+        norm_phone = normalize_phone_number(phone_number) or (("0" + digits[-10:]) if len(digits) >= 10 else digits)
+        
+        res = supabase.table("users").select("*").eq("phone_number", norm_phone).execute()
+        if res.data:
+            return res.data[0]
+        
+        # جستجوی انعطاف‌پذیر با ۱۰ رقم آخر
+        if len(digits) >= 10:
+            last_10 = digits[-10:]
+            res2 = supabase.table("users").select("*").ilike("phone_number", f"%{last_10}").execute()
+            if res2.data:
+                return res2.data[0]
+        return None
     except Exception as e:
         logger.error(f"Error fetching user by phone {phone_number}: {e}")
         return None

@@ -118,6 +118,7 @@ def register_auth_handlers(bot: TeleBot):
                     bot.delete_message(chat_id, call.message.message_id)
                 except:
                     pass
+                bot.send_message(chat_id, "🔙 بازگشت به منوی اصلی.", reply_markup=ReplyKeyboardRemove())
                 show_guest_landing(bot, chat_id)
                 
             elif call.data == "auth_register":
@@ -169,6 +170,7 @@ def register_auth_handlers(bot: TeleBot):
             user_id = message.from_user.id
             if message.text in ["❌ انصراف", "/cancel", "🔙 انصراف و بازگشت"]:
                 db.clear_user_state(user_id)
+                bot.send_message(message.chat.id, "❌ عملیات لغو شد.", reply_markup=ReplyKeyboardRemove())
                 show_guest_landing(bot, message.chat.id)
                 return
 
@@ -254,6 +256,7 @@ def register_auth_handlers(bot: TeleBot):
             user_id = message.from_user.id
             if message.text in ["❌ انصراف", "/cancel", "🔙 انصراف و بازگشت"]:
                 db.clear_user_state(user_id)
+                bot.send_message(message.chat.id, "❌ عملیات لغو شد.", reply_markup=ReplyKeyboardRemove())
                 show_guest_landing(bot, message.chat.id)
                 return
 
