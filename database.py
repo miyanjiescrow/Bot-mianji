@@ -9,6 +9,7 @@ from functools import lru_cache
 from supabase import create_client, Client
 from config import config
 import utils
+from phone_utils import normalize_phone_number
 
 logger = logging.getLogger("Miyanji_Database")
 
@@ -2055,6 +2056,51 @@ def set_user_state_safe(user_id: int, state: str, data: Dict = None, username: s
     """تنظیم وضعیت با اطمینان از وجود کاربر"""
     ensure_user_exists_basic(user_id, username)
     set_user_state(user_id, state, data)
+
+def register_or_update_user_by_phone(phone_number: str, full_name: str, telegram_id: Optional[int] = None, username: str = "", **kwargs) -> Optional[Dict[str, Any]]:
+    """ثبت یا بروزرسانی کاربر بر اساس شماره تلفن"""
+    if not supabase: return None
+    try:
+        norm_phone = normalize_phone_number(phone_number)
+        if not norm_phone:
+            return None
+        existing = get_user_by_phone(norm_phone)
+        if existing:
+            update_data = {}
+            if full_name: update_data["full_name"] = full_name
+            if username: update_data["username"] = username
+            for k, v in kwargs.items():
+                if v is not None: update_data[k] = v
+            if update_data:
+                supabase.table("users").update(update_data).eq("phone_number", norm_phone).execute()
+                existing.update(update_data)
+            if telegram_id:
+                set_user_session(telegram_id, norm_phone)
+            return existing
+        else:
+            uid = telegram_id if telegram_id else int(str(abs(hash(norm_phone)))[:10])
+            new_user = {
+                "id": uid,
+                "phone_number": norm_phone,
+                "full_name": full_name or "کاربر میانجی",
+                "username": username or "",
+                "wallet_balance": kwargs.get("wallet_balance", 0.0),
+                "role": kwargs.get("role", "user"),
+                "is_verified": True,
+                "national_id": kwargs.get("national_id"),
+                "is_blacklisted": kwargs.get("is_blacklisted", False),
+                "payment_cards": kwargs.get("payment_cards", "[]")
+            }
+            res = supabase.table("users").insert(new_user).execute()
+            if res.data:
+                created = res.data[0]
+                if telegram_id:
+                    set_user_session(telegram_id, norm_phone)
+                return created
+            return None
+    except Exception as e:
+        logger.error(f"Error registering/updating user by phone: {e}")
+        return None
 
 db = Database()
 
