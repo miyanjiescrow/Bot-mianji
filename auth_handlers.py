@@ -4,6 +4,8 @@ import unicodedata
 from telebot import TeleBot
 from telebot.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton
 import database as db
+import keyboards as kb
+from config import config
 
 logger = logging.getLogger("Miyanji_Auth")
 
@@ -45,13 +47,12 @@ def show_guest_landing(bot, chat_id, edit_id=None):
     else:
         bot.send_message(chat_id, text, reply_markup=get_guest_keyboard(), parse_mode="Markdown")
 
-def show_main_dashboard(bot, chat_id):
-    text = "🏠 **پنل کاربری میانجی**\n\nشما با موفقیت وارد شدید. از منوی زیر استفاده کنید:"
-    markup = InlineKeyboardMarkup(row_width=2)
-    markup.add(
-        InlineKeyboardButton("💰 معاملات من", callback_data="my_trades"),
-        InlineKeyboardButton("👤 پروفایل", callback_data="profile")
-    )
+def show_main_dashboard(bot, chat_id, user_id=None):
+    text = "🏠 **پنل کاربری میانجی**\n\nشما با موفقیت وارد سیستم شدید. از منوی زیر استفاده کنید:"
+    is_admin = False
+    if user_id:
+        is_admin = (user_id == config.OWNER_ID or user_id in getattr(config, 'ADMIN_IDS', []))
+    markup = kb.get_main_menu(is_admin=is_admin, is_verified=True)
     bot.send_message(chat_id, text, reply_markup=markup, parse_mode="Markdown")
 
 # --- Main Handlers Registration ---
@@ -65,7 +66,7 @@ def register_auth_handlers(bot: TeleBot):
             
             user = db.get_user(user_id)
             if user and user.get('is_verified'):
-                show_main_dashboard(bot, message.chat.id)
+                show_main_dashboard(bot, message.chat.id, user_id)
             else:
                 show_guest_landing(bot, message.chat.id)
         except Exception as e:
@@ -88,7 +89,7 @@ def register_auth_handlers(bot: TeleBot):
                 markup = ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
                 markup.add(KeyboardButton("📱 ارسال شماره موبایل من", request_contact=True))
                 markup.add(KeyboardButton("❌ انصراف"))
-                bot.send_message(chat_id, "📝 **مرحله ۱ از ۳: ثبت‌نام**\n\nلطفاً شماره موبایل خود را با استفاده از دکمه زیر ارسال کنید یا به صورت دستی وارد نمایید (مثال: 09123456789):", reply_markup=markup, parse_mode="Markdown")
+                bot.send_message(chat_id, "📝 **مرحله ۱ از ۳: ثبت‌نام**\n\nلطفاً شماره موبایل خود را با استفاده از دکمه زیر ارسال کنید یا به صورت دستی به شکل متن وارد نمایید (مثال: 09123456789):", reply_markup=markup, parse_mode="Markdown")
                 
             elif call.data == "auth_login":
                 db.set_user_state(user_id, "LOGIN_PHONE", {})
@@ -104,7 +105,7 @@ def register_auth_handlers(bot: TeleBot):
     def reg_phone_step(message: Message):
         try:
             user_id = message.from_user.id
-            if message.text == "❌ انصراف" or message.text == "/cancel":
+            if message.text in ["❌ انصراف", "/cancel", "🔙 انصراف و بازگشت"]:
                 db.clear_user_state(user_id)
                 show_guest_landing(bot, message.chat.id)
                 return
@@ -171,7 +172,7 @@ def register_auth_handlers(bot: TeleBot):
 
             db.clear_user_state(user_id)
             bot.send_message(message.chat.id, "✅ **ثبت‌نام با موفقیت کامل انجام شد!**", parse_mode="Markdown")
-            show_main_dashboard(bot, message.chat.id)
+            show_main_dashboard(bot, message.chat.id, user_id)
         except Exception as e:
             logger.error(f"Error in reg_name_step: {e}", exc_info=True)
             bot.send_message(message.chat.id, "❌ خطای سیستمی در ثبت‌نام. لطفاً دوباره تلاش کنید.")
@@ -181,6 +182,11 @@ def register_auth_handlers(bot: TeleBot):
     def login_phone_step(message: Message):
         try:
             user_id = message.from_user.id
+            if message.text in ["❌ انصراف", "/cancel", "🔙 انصراف و بازگشت"]:
+                db.clear_user_state(user_id)
+                show_guest_landing(bot, message.chat.id)
+                return
+
             phone = normalize_phone(message.text)
             
             if not phone:
@@ -215,7 +221,7 @@ def register_auth_handlers(bot: TeleBot):
             db.clear_user_state(user_id)
             
             bot.send_message(message.chat.id, "✅ **ورود موفقیت‌آمیز بود!**", parse_mode="Markdown")
-            show_main_dashboard(bot, message.chat.id)
+            show_main_dashboard(bot, message.chat.id, user_id)
         except Exception as e:
             logger.error(f"Error in login_password_step: {e}", exc_info=True)
             bot.send_message(message.chat.id, "❌ خطای سیستمی در ورود. لطفاً دوباره تلاش کنید.")
