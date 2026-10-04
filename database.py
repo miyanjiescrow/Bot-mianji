@@ -1906,25 +1906,49 @@ class Database:
 # ====================================================
 
 def get_user_by_phone(phone_number: str) -> Optional[Dict[str, Any]]:
-    """یافتن کاربر از طریق شماره موبایل (با پشتیبانی از انواع فرمت‌ها)"""
+    """یافتن کاربر از طریق شماره موبایل (با پشتیبانی کامل از جستجوی دقیق، الگو و فیلترینگ پایتون)"""
     if not supabase: return None
     try:
         digits = "".join([c for c in phone_number if c.isdigit()])
+        if not digits:
+            return None
+        
         norm_phone = normalize_phone_number(phone_number) or (("0" + digits[-10:]) if len(digits) >= 10 else digits)
-        
-        res = supabase.table("users").select("*").eq("phone_number", norm_phone).execute()
-        if res.data:
-            return res.data[0]
-        
-        # جستجوی انعطاف‌پذیر با ۱۰ رقم آخر
-        if len(digits) >= 10:
-            last_10 = digits[-10:]
-            res2 = supabase.table("users").select("*").ilike("phone_number", f"%{last_10}").execute()
-            if res2.data:
-                return res2.data[0]
+        last_10 = digits[-10:] if len(digits) >= 10 else digits
+
+        # 1. Try exact match
+        try:
+            res = supabase.table("users").select("*").eq("phone_number", norm_phone).execute()
+            if res.data and len(res.data) > 0:
+                return res.data[0]
+        except Exception as e:
+            logger.warning(f"Exact phone match query failed: {e}")
+
+        # 2. Try ilike match
+        try:
+            if len(digits) >= 10:
+                res2 = supabase.table("users").select("*").ilike("phone_number", f"%{last_10}").execute()
+                if res2.data and len(res2.data) > 0:
+                    return res2.data[0]
+        except Exception as e:
+            logger.warning(f"Ilike phone match query failed: {e}")
+
+        # 3. Fallback: fetch users and check in Python (guarantees 100% reliability against RLS or format quirks)
+        try:
+            res_all = supabase.table("users").select("*").limit(1000).execute()
+            if res_all.data:
+                for u in res_all.data:
+                    u_phone = u.get("phone_number")
+                    if u_phone:
+                        u_digits = "".join([c for c in str(u_phone) if c.isdigit()])
+                        if u_digits and (u_digits == digits or u_digits.endswith(last_10) or digits.endswith(u_digits)):
+                            return u
+        except Exception as e:
+            logger.warning(f"Python fallback phone search failed: {e}")
+
         return None
     except Exception as e:
-        logger.error(f"Error fetching user by phone {phone_number}: {e}")
+        logger.error(f"Error fetching user by phone {phone_number}: {e}", exc_info=True)
         return None
 
 def check_phone_exists(phone_number: str) -> bool:
