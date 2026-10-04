@@ -147,7 +147,6 @@ def register_auth_handlers(bot: TeleBot):
                 try:
                     if db.supabase:
                         db.supabase.table("users").update({"telegram_id": None, "is_verified": False}).eq("id", user_id).execute()
-                    db.register_or_update_user(user_id=user_id, is_verified=False)
                 except Exception as e:
                     logger.error(f"Error during logout for user {user_id}: {e}")
                 
@@ -276,8 +275,9 @@ def register_auth_handlers(bot: TeleBot):
 
             user = db.get_user_by_phone(phone)
             if not user:
-                bot.send_message(message.chat.id, "⚠️ حسابی با این شماره تلفن یافت نشد!\nلطفاً ابتدا ثبت‌نام کنید.", reply_markup=get_guest_keyboard())
+                bot.send_message(message.chat.id, "⚠️ حسابی با این شماره تلفن یافت نشد!\nلطفاً ابتدا ثبت‌نام کنید.", reply_markup=ReplyKeyboardRemove())
                 db.clear_user_state(user_id)
+                show_guest_landing(bot, message.chat.id)
                 return
 
             db.set_user_state(user_id, "LOGIN_PASSWORD", {"phone": phone})

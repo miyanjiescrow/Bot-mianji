@@ -547,7 +547,7 @@ def register_user_handlers(bot: TeleBot):
             reply_markup=kb.get_role_keyboard()
         )
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_ROLE_SELECTION")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_ROLE_SELECTION")
     def process_role_selection(message: Message):
         user_id = message.from_user.id
         role_text = message.text
@@ -571,7 +571,7 @@ def register_user_handlers(bot: TeleBot):
     # ====================================================
     # ۴. انتخاب دسته‌بندی معامله
     # ====================================================
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_CATEGORY_SELECTION")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_CATEGORY_SELECTION")
     def process_category_selection(message: Message):
         user_id = message.from_user.id
         state_tuple = db.get_user_state(user_id)
