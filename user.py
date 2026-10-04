@@ -6969,7 +6969,7 @@ def register_user_handlers(bot: TeleBot):
             reply_markup=kb.get_admin_panel_keyboard(quick_stats, is_owner_u)
         )
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) not in _ACTIVE_FSM_STATES)
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] not in _ACTIVE_FSM_STATES and db.get_user_state(msg.from_user.id)[0] not in {"REG_PHONE", "REG_PASSWORD", "REG_NAME", "LOGIN_PHONE", "LOGIN_PASSWORD", "CHANGE_PWD_OLD", "CHANGE_PWD_NEW", "CHANGE_PHONE_NEW"})
     def handle_fallback_text(message: Message):
         user_id = message.from_user.id
         text = (message.text or "").strip()
