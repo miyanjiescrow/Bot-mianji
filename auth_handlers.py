@@ -130,7 +130,14 @@ def register_auth_handlers(bot: TeleBot):
                 
             elif call.data == "auth_login":
                 db.set_user_state(user_id, "LOGIN_PHONE", {})
-                bot.edit_message_text("🔑 **ورود به حساب کاربری**\n\nلطفاً شماره موبایل ثبت‌شده خود را وارد کنید:", chat_id, call.message.message_id, reply_markup=get_cancel_keyboard(), parse_mode="Markdown")
+                markup = ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
+                markup.add(KeyboardButton("📱 ارسال شماره موبایل من", request_contact=True))
+                markup.add(KeyboardButton("❌ انصراف"))
+                try:
+                    bot.delete_message(chat_id, call.message.message_id)
+                except:
+                    pass
+                bot.send_message(chat_id, "🔑 **ورود به حساب کاربری**\n\nلطفاً شماره موبایل خود را با استفاده از دکمه زیر ارسال کنید یا به صورت دستی وارد نمایید (مثال: 09123456789):", reply_markup=markup, parse_mode="Markdown")
                 
             elif call.data == "auth_help":
                 bot.answer_callback_query(call.id, "برای راهنمایی با پشتیبانی میانجی در ارتباط باشید: @mianji_support", show_alert=True)
@@ -250,7 +257,7 @@ def register_auth_handlers(bot: TeleBot):
             bot.send_message(message.chat.id, "❌ خطای سیستمی در ثبت‌نام. لطفاً دوباره تلاش کنید.")
 
     # --- LOGIN FLOW ---
-    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "LOGIN_PHONE")
+    @bot.message_handler(content_types=['text', 'contact'], func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "LOGIN_PHONE")
     def login_phone_step(message: Message):
         try:
             user_id = message.from_user.id
@@ -260,10 +267,11 @@ def register_auth_handlers(bot: TeleBot):
                 show_guest_landing(bot, message.chat.id)
                 return
 
-            phone = normalize_phone(message.text)
+            raw_phone = message.contact.phone_number if message.contact else message.text
+            phone = normalize_phone(raw_phone)
             
             if not phone:
-                bot.send_message(message.chat.id, "⚠️ شماره موبایل نامعتبر است. لطفاً به صورت صحیح وارد کنید:")
+                bot.send_message(message.chat.id, "⚠️ شماره موبایل نامعتبر است. لطفاً شماره خود را ارسال کنید یا به صورت صحیح وارد کنید (مثال: 09123456789):")
                 return
 
             user = db.get_user_by_phone(phone)
@@ -273,7 +281,7 @@ def register_auth_handlers(bot: TeleBot):
                 return
 
             db.set_user_state(user_id, "LOGIN_PASSWORD", {"phone": phone})
-            bot.send_message(message.chat.id, "🔑 لطفاً رمز عبور حساب خود را وارد کنید:")
+            bot.send_message(message.chat.id, "🔑 لطفاً رمز عبور حساب خود را وارد کنید:", reply_markup=ReplyKeyboardRemove())
         except Exception as e:
             logger.error(f"Error in login_phone_step: {e}", exc_info=True)
 
