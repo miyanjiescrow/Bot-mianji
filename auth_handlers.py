@@ -18,6 +18,8 @@ def normalize_phone(phone_str: str) -> str:
     digits = "".join([c for c in normalized if c.isdigit()])
     if digits.startswith(("98", "0098")):
         digits = "0" + digits[2:] if len(digits) > 10 else digits[2:]
+    elif digits.startswith("09") and len(digits) == 11:
+        pass
     elif len(digits) == 10 and digits.startswith("9"):
         digits = "0" + digits
     return digits if len(digits) == 11 else ""
@@ -73,23 +75,53 @@ def register_auth_handlers(bot: TeleBot):
             logger.error(f"Error in start_handler: {e}", exc_info=True)
             bot.send_message(message.chat.id, "❌ خطای سیستمی رخ داد. لطفاً دوباره تلاش کنید.")
 
-    @bot.callback_query_handler(func=lambda call: call.data in ["auth_login", "auth_register", "auth_help", "auth_cancel"])
-    def auth_callbacks(call: CallbackQuery):
+    @bot.message_handler(func=lambda msg: msg.text == "👤 پروفایل کاربری")
+    def profile_menu_handler(message: Message):
+        try:
+            user_id = message.from_user.id
+            user = db.get_user(user_id)
+            if not user or not user.get('is_verified'):
+                show_guest_landing(bot, message.chat.id)
+                return
+            
+            text = (
+                f"👤 **پروفایل کاربری شما**\n\n"
+                f"▫️ نام و نام خانوادگی: {user.get('full_name', 'ثبت نشده')}\n"
+                f"▫️ شماره موبایل: {user.get('phone_number', 'ثبت نشده')}\n"
+                f"▫️ شناسه کاربری: `{user_id}`\n"
+            )
+            markup = InlineKeyboardMarkup(row_width=1)
+            markup.add(
+                InlineKeyboardButton("🔑 تغییر رمز عبور", callback_data="profile_change_pwd"),
+                InlineKeyboardButton("📱 تغییر شماره تماس", callback_data="profile_change_phone"),
+                InlineKeyboardButton("🚪 خروج از اکانت", callback_data="profile_logout"),
+                InlineKeyboardButton("🔙 بازگشت به منو", callback_data="profile_back")
+            )
+            bot.send_message(message.chat.id, text, reply_markup=markup, parse_mode="Markdown")
+        except Exception as e:
+            logger.error(f"Error in profile_menu_handler: {e}", exc_info=True)
+
+    @bot.callback_query_handler(func=lambda call: call.data in ["auth_login", "auth_register", "auth_help", "auth_cancel", "profile_change_pwd", "profile_change_phone", "profile_logout", "profile_back"])
+    def auth_and_profile_callbacks(call: CallbackQuery):
         try:
             user_id = call.from_user.id
             bot.answer_callback_query(call.id)
             chat_id = call.message.chat.id
             
-            if call.data == "auth_cancel":
+            if call.data == "auth_cancel" or call.data == "profile_back":
                 db.clear_user_state(user_id)
-                show_guest_landing(bot, chat_id, edit_id=call.message.message_id)
+                try:
+                    bot.delete_message(chat_id, call.message.message_id)
+                except:
+                    pass
+                show_guest_landing(bot, chat_id)
                 
             elif call.data == "auth_register":
                 db.set_user_state(user_id, "REG_PHONE", {})
                 markup = ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
                 markup.add(KeyboardButton("📱 ارسال شماره موبایل من", request_contact=True))
                 markup.add(KeyboardButton("❌ انصراف"))
-                bot.send_message(chat_id, "📝 **مرحله ۱ از ۳: ثبت‌نام**\n\nلطفاً شماره موبایل خود را با استفاده از دکمه زیر ارسال کنید یا به صورت دستی به شکل متن وارد نمایید (مثال: 09123456789):", reply_markup=markup, parse_mode="Markdown")
+                bot.send_message(chat_id, "📝 **مرحله ۱ از ۳: ثبت‌نام**\n\nلطفاً شماره موبایل خود را با استفاده از دکمه زیر ارسال کنید یا به صورت دستی وارد نمایید (مثال: 09123456789):", reply_markup=markup, parse_mode="Markdown")
                 
             elif call.data == "auth_login":
                 db.set_user_state(user_id, "LOGIN_PHONE", {})
@@ -97,8 +129,26 @@ def register_auth_handlers(bot: TeleBot):
                 
             elif call.data == "auth_help":
                 bot.answer_callback_query(call.id, "برای راهنمایی با پشتیبانی میانجی در ارتباط باشید.", show_alert=True)
+
+            elif call.data == "profile_logout":
+                db.clear_user_state(user_id)
+                try:
+                    db.register_or_update_user(user_id=user_id, is_verified=False)
+                except:
+                    pass
+                bot.edit_message_text("🚪 شما با موفقیت از حساب کاربری خود خارج شدید.", chat_id, call.message.message_id)
+                show_guest_landing(bot, chat_id)
+
+            elif call.data == "profile_change_pwd":
+                db.set_user_state(user_id, "CHANGE_PWD_OLD", {})
+                bot.edit_message_text("🔑 لطفاً **رمز عبور فعلی** خود را وارد کنید:", chat_id, call.message.message_id, parse_mode="Markdown")
+
+            elif call.data == "profile_change_phone":
+                db.set_user_state(user_id, "CHANGE_PHONE_NEW", {})
+                bot.edit_message_text("📱 لطفاً **شماره موبایل جدید** خود را وارد کنید:", chat_id, call.message.message_id, parse_mode="Markdown")
+
         except Exception as e:
-            logger.error(f"Error in auth_callbacks: {e}", exc_info=True)
+            logger.error(f"Error in callbacks: {e}", exc_info=True)
 
     # --- REGISTRATION FLOW ---
     @bot.message_handler(content_types=['text', 'contact'], func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "REG_PHONE")
@@ -225,3 +275,64 @@ def register_auth_handlers(bot: TeleBot):
         except Exception as e:
             logger.error(f"Error in login_password_step: {e}", exc_info=True)
             bot.send_message(message.chat.id, "❌ خطای سیستمی در ورود. لطفاً دوباره تلاش کنید.")
+
+    # --- PROFILE MANAGEMENT (CHANGE PASSWORD & PHONE) ---
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "CHANGE_PWD_OLD")
+    def change_pwd_old_step(message: Message):
+        try:
+            user_id = message.from_user.id
+            pwd = message.text.strip()
+            user = db.get_user(user_id)
+            
+            if not user or user.get("password_hash") != hash_password(pwd):
+                bot.send_message(message.chat.id, "❌ رمز عبور فعلی اشتباه است. دوباره وارد کنید:")
+                return
+
+            db.set_user_state(user_id, "CHANGE_PWD_NEW", {})
+            bot.send_message(message.chat.id, "🔑 لطفاً **رمز عبور جدید** خود را وارد کنید:")
+        except Exception as e:
+            logger.error(f"Error in change_pwd_old_step: {e}", exc_info=True)
+
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "CHANGE_PWD_NEW")
+    def change_pwd_new_step(message: Message):
+        try:
+            user_id = message.from_user.id
+            new_pwd = message.text.strip()
+            if len(new_pwd) < 4:
+                bot.send_message(message.chat.id, "⚠️ رمز عبور جدید باید حداقل ۴ کاراکتر باشد:")
+                return
+
+            new_hash = hash_password(new_pwd)
+            db.register_or_update_user(user_id=user_id, password_hash=new_hash)
+            db.clear_user_state(user_id)
+            
+            bot.send_message(message.chat.id, "✅ رمز عبور شما با موفقیت تغییر یافت.")
+            show_main_dashboard(bot, message.chat.id, user_id)
+        except Exception as e:
+            logger.error(f"Error in change_pwd_new_step: {e}", exc_info=True)
+            bot.send_message(message.chat.id, "❌ خطا در تغییر رمز عبور.")
+
+    @bot.message_handler(content_types=['text', 'contact'], func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "CHANGE_PHONE_NEW")
+    def change_phone_new_step(message: Message):
+        try:
+            user_id = message.from_user.id
+            raw_phone = message.contact.phone_number if message.contact else message.text
+            phone = normalize_phone(raw_phone)
+            
+            if not phone:
+                bot.send_message(message.chat.id, "⚠️ شماره موبایل نامعتبر است. لطفاً فرمت صحیح را وارد کنید:")
+                return
+
+            existing = db.get_user_by_phone(phone)
+            if existing and existing.get("id") != user_id:
+                bot.send_message(message.chat.id, "⚠️ این شماره تلفن متعلق به کاربر دیگری است!")
+                return
+
+            db.register_or_update_user(user_id=user_id, phone_number=phone)
+            db.clear_user_state(user_id)
+            
+            bot.send_message(message.chat.id, "✅ شماره تماس شما با موفقیت تغییر یافت.")
+            show_main_dashboard(bot, message.chat.id, user_id)
+        except Exception as e:
+            logger.error(f"Error in change_phone_new_step: {e}", exc_info=True)
+            bot.send_message(message.chat.id, "❌ خطا در تغییر شماره تماس.")
