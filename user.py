@@ -612,7 +612,7 @@ def register_user_handlers(bot: TeleBot):
     # فقط روش «جمع‌آوری» اطلاعات را ساده کرده و به هیچ بخش دیگری آسیب نمی‌زند.
     # ====================================================
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_WIZARD_TITLE")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_WIZARD_TITLE")
     def wizard_step_title(message: Message):
         user_id = message.from_user.id
         _, data = db.get_user_state(user_id)
@@ -633,7 +633,7 @@ def register_user_handlers(bot: TeleBot):
             reply_markup=kb.get_cancel_keyboard()
         )
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_WIZARD_AMOUNT")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_WIZARD_AMOUNT")
     def wizard_step_amount(message: Message):
         user_id = message.from_user.id
         _, data = db.get_user_state(user_id)
@@ -764,7 +764,7 @@ def register_user_handlers(bot: TeleBot):
         bot.answer_callback_query(call.id, f"✅ مهلت تحویل: {choice} روز")
         _wizard_go_to_milestones_ask(call.message.chat.id)
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_WIZARD_DEADLINE_CUSTOM")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_WIZARD_DEADLINE_CUSTOM")
     def wizard_step_deadline_custom(message: Message):
         user_id = message.from_user.id
         _, data = db.get_user_state(user_id)
@@ -899,7 +899,7 @@ def register_user_handlers(bot: TeleBot):
             reply_markup=kb.get_cancel_keyboard()
         )
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_WIZARD_MS_CUSTOM_PCT")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_WIZARD_MS_CUSTOM_PCT")
     def wizard_step_ms_template_custom_apply(message: Message):
         user_id = message.from_user.id
         _, data = db.get_user_state(user_id)
@@ -933,7 +933,7 @@ def register_user_handlers(bot: TeleBot):
             reply_markup=kb.get_cancel_keyboard()
         )
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_WIZARD_MS_TITLE")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_WIZARD_MS_TITLE")
     def wizard_step_milestone_title(message: Message):
         user_id = message.from_user.id
         _, data = db.get_user_state(user_id)
@@ -947,7 +947,7 @@ def register_user_handlers(bot: TeleBot):
         db.set_user_state(user_id, "WAITING_WIZARD_MS_AMOUNT", {"contract_draft": draft, "pending_ms_title": title})
         bot.send_message(message.chat.id, f"💵 مبلغ این مرحله («{title}») را به تومان بنویسید:", reply_markup=kb.get_cancel_keyboard())
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_WIZARD_MS_AMOUNT")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_WIZARD_MS_AMOUNT")
     def wizard_step_milestone_amount(message: Message):
         user_id = message.from_user.id
         _, data = db.get_user_state(user_id)
@@ -1067,7 +1067,7 @@ def register_user_handlers(bot: TeleBot):
             reply_markup=kb.get_cancel_keyboard()
         )
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_WIZARD_DESCRIPTION")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_WIZARD_DESCRIPTION")
     def wizard_step_description(message: Message):
         user_id = message.from_user.id
         _, data = db.get_user_state(user_id)
@@ -1152,7 +1152,7 @@ def register_user_handlers(bot: TeleBot):
             parse_mode="Markdown"
         )
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_CUSTOM_FREE_EDITS")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_CUSTOM_FREE_EDITS")
     def handle_custom_free_edits(message: Message):
         user_id = message.from_user.id
         _, data = db.get_user_state(user_id)
@@ -1315,7 +1315,7 @@ def register_user_handlers(bot: TeleBot):
             reply_markup=kb.get_cancel_keyboard()
         )
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_FIELD_EDIT")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_FIELD_EDIT")
     def process_field_edit(message: Message):
         user_id = message.from_user.id
         _, data = db.get_user_state(user_id)
@@ -1386,7 +1386,7 @@ def register_user_handlers(bot: TeleBot):
     # ====================================================
     # ۸. نهایی‌سازی در دیتابیس (با تایید OTP برای نفر اول)
     # ====================================================
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_WORK_PHONE")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_WORK_PHONE")
     def process_work_phone_step(message: Message):
         user_id = message.from_user.id
         state_tuple = db.get_user_state(user_id)
@@ -1472,7 +1472,7 @@ def register_user_handlers(bot: TeleBot):
             reply_markup=kb.get_cancel_keyboard()
         )
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_CREATOR_SIGN_OTP")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_CREATOR_SIGN_OTP")
     def process_creator_sign_otp(message: Message):
         user_id = message.from_user.id
         # ۱. استانداردسازی کد OTP و دریافت استیت
@@ -1749,7 +1749,7 @@ def register_user_handlers(bot: TeleBot):
             reply_markup=kb.get_cancel_keyboard()
         )
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_CONTRACT_SEARCH_ID")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_CONTRACT_SEARCH_ID")
     def handle_contracts_search_id(message: Message):
         user_id = message.from_user.id
         contract_id = message.text.strip().upper()
@@ -2161,7 +2161,7 @@ def register_user_handlers(bot: TeleBot):
             reply_markup=kb.get_wallet_amount_cancel_keyboard()
         )
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_BANK_ACCOUNT_INPUT")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_BANK_ACCOUNT_INPUT")
     def handle_bank_account_input(message: Message):
         user_id = message.from_user.id
         raw_text = message.text or ""
@@ -2567,7 +2567,7 @@ def register_user_handlers(bot: TeleBot):
                 reply_markup=kb.get_negotiation_edit_inline(cid)
             )
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_NEGOTIATION_TEXT")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_NEGOTIATION_TEXT")
     def handle_negotiation_text(message: Message):
         user_id = message.from_user.id
         neg_text = message.text.strip()
@@ -2659,7 +2659,7 @@ def register_user_handlers(bot: TeleBot):
             reply_markup=kb.get_cancel_keyboard()
         )
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_NEGOTIATION_UPDATE")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_NEGOTIATION_UPDATE")
     def handle_negotiation_update(message: Message):
         user_id = message.from_user.id
         new_value = message.text.strip()
@@ -2894,7 +2894,7 @@ def register_user_handlers(bot: TeleBot):
             reply_markup=kb.get_cancel_keyboard()
         )
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_SIGN_FULLNAME")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_SIGN_FULLNAME")
     def handle_sign_fullname(message: Message):
         user_id = message.from_user.id
         full_name = message.text.strip()
@@ -2935,7 +2935,7 @@ def register_user_handlers(bot: TeleBot):
             reply_markup=kb.get_phone_sign_keyboard()
         )
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_SIGN_NATIONAL_ID")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_SIGN_NATIONAL_ID")
     def handle_sign_national_id(message: Message):
         user_id = message.from_user.id
         national_id = utils.fa_to_en_digits(message.text.strip())
@@ -2954,7 +2954,7 @@ def register_user_handlers(bot: TeleBot):
         else:
             _send_signing_otp(bot, message.chat.id, user_id, data.get("contract_id"))
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_SIGNATURE_OTP")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_SIGNATURE_OTP")
     def process_signature_otp(message: Message):
         user_id = message.from_user.id
         text = utils.fa_to_en_digits(message.text.strip())
@@ -3026,7 +3026,7 @@ def register_user_handlers(bot: TeleBot):
             reply_markup=kb.get_phone_sign_keyboard()
         )
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_SIGN_PHONE", content_types=['text', 'contact'])
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_SIGN_PHONE", content_types=['text', 'contact'])
     def handle_sign_phone(message: Message):
         user_id = message.from_user.id
         phone = ""
@@ -3097,7 +3097,7 @@ def register_user_handlers(bot: TeleBot):
                 reply_markup=kb.get_skip_work_phone_keyboard()
             )
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_SIGN_ALT_PHONE")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_SIGN_ALT_PHONE")
     def handle_sign_alt_phone(message: Message):
         user_id = message.from_user.id
         _, data = db.get_user_state(user_id)
@@ -3400,7 +3400,7 @@ def register_user_handlers(bot: TeleBot):
 
     @bot.message_handler(
         content_types=['photo', 'document'],
-        func=lambda msg: getattr(msg, "user_state", None) == "WAITING_RECEIPT_PHOTO"
+        func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_RECEIPT_PHOTO"
     )
     def handle_receipt_photo(message: Message):
         """دریافت تصویر فیش واریزی و ارسال آن برای تایید ادمین"""
@@ -3844,7 +3844,7 @@ def register_user_handlers(bot: TeleBot):
 
     @bot.message_handler(
         content_types=['photo', 'document'],
-        func=lambda msg: getattr(msg, "user_state", None) == "WAITING_MS_RECEIPT_PHOTO"
+        func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_MS_RECEIPT_PHOTO"
     )
     def handle_ms_receipt_photo(message: Message):
         """دریافت فیش واریزی یک مرحله و ارسال آن برای تایید ادمین"""
@@ -3966,7 +3966,7 @@ def register_user_handlers(bot: TeleBot):
 
     @bot.message_handler(
         content_types=['photo', 'document', 'text', 'video', 'voice', 'audio', 'video_note', 'animation'],
-        func=lambda msg: getattr(msg, "user_state", None) == "WAITING_MS_DELIVERY_CONTENT"
+        func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_MS_DELIVERY_CONTENT"
     )
     def handle_ms_delivery_content(message: Message):
         user_id = message.from_user.id
@@ -4205,7 +4205,7 @@ def register_user_handlers(bot: TeleBot):
             reply_markup=kb.get_cancel_keyboard()
         )
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_PROJECT_REJECT_REASON")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_PROJECT_REJECT_REASON")
     def handle_reject_project_reason(message: Message):
         user_id = message.from_user.id
         _, data = db.get_user_state(user_id)
@@ -4298,7 +4298,7 @@ def register_user_handlers(bot: TeleBot):
     # ====================================================
     # ۹.۵ قیمت‌گذاری و تایید ویرایش اضافه (پس از اتمام ویرایش رایگان) — بخش جدید
     # ====================================================
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_EXTRA_EDIT_PRICE")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_EXTRA_EDIT_PRICE")
     def handle_extra_edit_price_input(message: Message):
         user_id = message.from_user.id
         _, data = db.get_user_state(user_id)
@@ -4532,7 +4532,7 @@ def register_user_handlers(bot: TeleBot):
             reply_markup=kb.get_cancel_keyboard()
         )
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_BARGAIN_PRICE")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_BARGAIN_PRICE")
     def process_bargain_price(message: Message):
         user_id = message.from_user.id
         _, data = db.get_user_state(user_id)
@@ -4618,7 +4618,7 @@ def register_user_handlers(bot: TeleBot):
 
     @bot.message_handler(
         content_types=['photo', 'document', 'text', 'video', 'voice', 'audio', 'video_note', 'animation'],
-        func=lambda msg: getattr(msg, "user_state", None) == "WAITING_DELIVERY_CONTENT"
+        func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_DELIVERY_CONTENT"
     )
     def handle_delivery_content(message: Message):
         user_id = message.from_user.id
@@ -5252,7 +5252,7 @@ def register_user_handlers(bot: TeleBot):
             reply_markup=kb.get_cancel_keyboard()
         )
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_DISPUTE_CID")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_DISPUTE_CID")
     def handle_dispute_cid(message: Message):
         user_id = message.from_user.id
         cid = message.text.strip()
@@ -5280,7 +5280,7 @@ def register_user_handlers(bot: TeleBot):
             reply_markup=kb.get_cancel_keyboard()
         )
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_DISPUTE_REASON")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_DISPUTE_REASON")
     def handle_dispute_reason(message: Message):
         user_id = message.from_user.id
         _, data = db.get_user_state(user_id)
@@ -5303,7 +5303,7 @@ def register_user_handlers(bot: TeleBot):
             reply_markup=markup
         )
 
-    @bot.message_handler(content_types=['text', 'photo', 'document'], func=lambda msg: getattr(msg, "user_state", None) == "WAITING_DISPUTE_PROOF")
+    @bot.message_handler(content_types=['text', 'photo', 'document'], func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_DISPUTE_PROOF")
     def handle_dispute_proof(message: Message):
         user_id = message.from_user.id
         _, data = db.get_user_state(user_id)
@@ -5385,7 +5385,7 @@ def register_user_handlers(bot: TeleBot):
             reply_markup=kb.get_wallet_amount_cancel_keyboard()
         )
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_DEPOSIT_AMOUNT")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_DEPOSIT_AMOUNT")
     def handle_deposit_amount(message: Message):
         user_id = message.from_user.id
         clean_text = utils.fa_to_en_digits(message.text).replace(",", "").strip()
@@ -5408,7 +5408,7 @@ def register_user_handlers(bot: TeleBot):
             reply_markup=kb.get_wallet_amount_cancel_keyboard()
         )
 
-    @bot.message_handler(content_types=['photo'], func=lambda msg: getattr(msg, "user_state", None) == "WAITING_DEPOSIT_RECEIPT")
+    @bot.message_handler(content_types=['photo'], func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_DEPOSIT_RECEIPT")
     def handle_deposit_receipt(message: Message):
         user_id = message.from_user.id
         _, state_data = db.get_user_state(user_id)
@@ -5533,7 +5533,7 @@ def register_user_handlers(bot: TeleBot):
             reply_markup=kb.get_wallet_amount_cancel_keyboard()
         )
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_WITHDRAW_AMOUNT")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_WITHDRAW_AMOUNT")
     def handle_withdraw_amount(message: Message):
         user_id = message.from_user.id
         raw_text = message.text or ""
@@ -5685,7 +5685,7 @@ def register_user_handlers(bot: TeleBot):
             reply_markup=admin_markup
         )
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_WITHDRAW_SHEBA")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_WITHDRAW_SHEBA")
     def handle_withdraw_sheba(message: Message):
         user_id = message.from_user.id
         is_admin_u = (user_id == getattr(config, 'ADMIN_ID', 0) or user_id in getattr(config, 'ADMIN_IDS', []))
@@ -5742,7 +5742,7 @@ def register_user_handlers(bot: TeleBot):
             reply_markup=kb.get_wallet_amount_cancel_keyboard()
         )
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_WITHDRAW_HOLDER_NAME")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_WITHDRAW_HOLDER_NAME")
     def handle_withdraw_holder_name(message: Message):
         user_id = message.from_user.id
         state, state_data = db.get_user_state(user_id)
@@ -5969,7 +5969,7 @@ def register_user_handlers(bot: TeleBot):
                 bot.send_message(call.message.chat.id, info, parse_mode="Markdown", reply_markup=markup)
             bot.answer_callback_query(call.id)
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_AMBASSADOR_CASHOUT_INFO")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_AMBASSADOR_CASHOUT_INFO")
     def handle_amb_cashout_info(message: Message):
         user_id = message.from_user.id
         info = message.text.strip()
@@ -6095,7 +6095,7 @@ def register_user_handlers(bot: TeleBot):
             reply_markup=kb.get_broadcaster_channel_input_inline()
         )
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "AMB_BROADCASTER_CHANNEL")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "AMB_BROADCASTER_CHANNEL")
     def handle_amb_broadcaster_channel(message: Message):
         """دریافت و تایید کانال مقصد"""
         user_id = message.from_user.id
@@ -6134,7 +6134,7 @@ def register_user_handlers(bot: TeleBot):
                 reply_markup=kb.get_broadcaster_channel_input_inline()
             )
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "AMB_BROADCASTER_CONTENT")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "AMB_BROADCASTER_CONTENT")
     def handle_amb_broadcaster_content(message: Message):
         """دریافت محتوای پست (متن، تصویر، ویدئو)"""
         user_id = message.from_user.id
@@ -6184,7 +6184,7 @@ def register_user_handlers(bot: TeleBot):
         # نمایش پیش‌نمایش
         _show_broadcaster_preview(bot, call.message.chat.id, user_id, state_data)
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "AMB_BROADCASTER_BUTTON_TEXT")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "AMB_BROADCASTER_BUTTON_TEXT")
     def handle_amb_broadcaster_button_text(message: Message):
         """دریافت متن دکمهٔ سفارشی"""
         user_id = message.from_user.id
@@ -6577,7 +6577,7 @@ def register_user_handlers(bot: TeleBot):
     # ====================================================
     # ۸۸. دریافت نام کامل برای اولین بار
     # ====================================================
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_FULL_NAME")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_FULL_NAME")
     def process_full_name(message: Message):
         user_id = message.from_user.id
         full_name = message.text.strip()
@@ -6677,7 +6677,7 @@ def register_user_handlers(bot: TeleBot):
             reply_markup=kb.get_cancel_keyboard()
         )
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_KYC_PHONE", content_types=['contact', 'text'])
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_KYC_PHONE", content_types=['contact', 'text'])
     def handle_kyc_contact(message: Message):
         user_id = message.from_user.id
         
@@ -6704,7 +6704,7 @@ def register_user_handlers(bot: TeleBot):
         bot.send_message(message.chat.id, "✅ شماره موبایل تایید شد.")
         start_kyc_process(message.chat.id, user_id)
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_KYC_NATIONAL_ID")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_KYC_NATIONAL_ID")
     def process_kyc_national_id(message: Message):
         user_id = message.from_user.id
         try:
@@ -6821,7 +6821,7 @@ def register_user_handlers(bot: TeleBot):
             reply_markup=kb.get_cancel_keyboard()
         )
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "WAITING_PROFILE_FULLNAME")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_PROFILE_FULLNAME")
     def process_profile_fullname(message: Message):
         user_id = message.from_user.id
         full_name = message.text.strip()
@@ -6858,7 +6858,7 @@ def register_user_handlers(bot: TeleBot):
         else:
             bot.send_message(message.chat.id, "❌ خطایی در ذخیره‌سازی رخ داد. لطفاً دوباره تلاش کنید.")
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "EDITING_FULLNAME")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "EDITING_FULLNAME")
 
     @bot.callback_query_handler(func=lambda call: call.data == "edit_national_id")
     def edit_national_id_callback(call: CallbackQuery):
@@ -6873,7 +6873,7 @@ def register_user_handlers(bot: TeleBot):
             reply_markup=kb.get_cancel_keyboard()
         )
 
-    @bot.message_handler(func=lambda msg: getattr(msg, "user_state", None) == "EDITING_NATIONAL_ID")
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "EDITING_NATIONAL_ID")
     def process_edit_national_id(message: Message):
         user_id = message.from_user.id
         national_id = message.text.strip()
