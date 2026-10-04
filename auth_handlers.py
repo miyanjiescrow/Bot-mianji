@@ -30,7 +30,7 @@ def get_guest_keyboard():
     markup.add(
         InlineKeyboardButton("🔑 ورود به حساب کاربری", callback_data="auth_login"),
         InlineKeyboardButton("📝 ثبت‌نام در سامانه", callback_data="auth_register"),
-        InlineKeyboardButton("❓ پشتیبانی", callback_data="auth_help")
+        InlineKeyboardButton("🎧 پشتیبانی (@mianji_support)", url="https://t.me/mianji_support")
     )
     return markup
 
@@ -40,7 +40,11 @@ def get_cancel_keyboard():
     return markup
 
 def show_guest_landing(bot, chat_id, edit_id=None):
-    text = "🔒 **پلتفرم امن میانجی (Escrow)**\n\nبرای استفاده از امکانات ربات، لطفاً وارد حساب خود شوید یا ثبت‌نام کنید:"
+    text = (
+        "🔒 **پلتفرم امن میانجی (Escrow)**\n\n"
+        "برای استفاده از امکانات ربات، لطفاً وارد حساب خود شوید یا ثبت‌نام کنید:\n\n"
+        "💬 **پشتیبانی تلگرام:** `@mianji_support`"
+    )
     if edit_id:
         try:
             bot.edit_message_text(text, chat_id, edit_id, reply_markup=get_guest_keyboard(), parse_mode="Markdown")
@@ -133,10 +137,18 @@ def register_auth_handlers(bot: TeleBot):
             elif call.data == "profile_logout":
                 db.clear_user_state(user_id)
                 try:
+                    if db.supabase:
+                        db.supabase.table("users").update({"telegram_id": None, "is_verified": False}).eq("id", user_id).execute()
                     db.register_or_update_user(user_id=user_id, is_verified=False)
+                except Exception as e:
+                    logger.error(f"Error during logout for user {user_id}: {e}")
+                
+                try:
+                    bot.delete_message(chat_id, call.message.message_id)
                 except:
                     pass
-                bot.edit_message_text("🚪 شما با موفقیت از حساب کاربری خود خارج شدید.", chat_id, call.message.message_id)
+
+                bot.send_message(chat_id, "🚪 شما با موفقیت از حساب کاربری خود خارج شدید.", reply_markup=ReplyKeyboardRemove())
                 show_guest_landing(bot, chat_id)
 
             elif call.data == "profile_change_pwd":
