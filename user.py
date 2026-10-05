@@ -3115,7 +3115,12 @@ def register_user_handlers(bot: TeleBot):
                 f"📄 قرارداد شماره `{cid}` ایجاد گردید.\n\n"
                 f"🔗 **لینک امضا و دعوت طرف دوم:**\n`{share_link}`\n\n"
                 f"💡 این لینک را برای طرف دوم ارسال کنید تا قرارداد را امضا کند.",
-                reply_markup=kb.get_main_menu(is_admin)
+                reply_markup=kb.get_contract_created_inline(cid, share_link)
+            )
+            bot.send_message(
+                chat_id,
+                "🏠 از منوی زیر می‌توانید بخش‌های دیگر را مدیریت کنید:",
+                reply_markup=kb.get_main_menu(is_admin, is_verified=True)
             )
             return
 

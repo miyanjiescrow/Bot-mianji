@@ -1,3 +1,4 @@
+import urllib.parse
 from typing import Optional, Union, Dict, Any, List
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from config import config
@@ -1219,3 +1220,17 @@ def get_cancel_keyboard() -> ReplyKeyboardMarkup:
     markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
     markup.add(KeyboardButton("❌ انصراف"))
     return markup
+
+def get_contract_created_inline(contract_id: str, share_link: str) -> InlineKeyboardMarkup:
+    """کیبورد زیر پیام موفقیت ایجاد قرارداد برای نفر اول: پیش‌نمایش PDF و دکمه ارسال به مخاطب"""
+    markup = InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        InlineKeyboardButton("📑 پیش‌نمایش و دریافت PDF", callback_data=f"get_pdf_{contract_id}")
+    )
+    share_text = f"سلام! لطفاً برای مشاهده و امضای قرارداد امن میانجی (شماره {contract_id}) روی لینک زیر کلیک کنید:\n{share_link}"
+    share_url = f"https://t.me/share/url?url={share_link}&text={urllib.parse.quote(share_text)}"
+    markup.add(
+        InlineKeyboardButton("📤 ارسال به مخاطب / اشتراک‌گذاری", url=share_url)
+    )
+    return markup
+
