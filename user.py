@@ -1761,7 +1761,8 @@ def register_user_handlers(bot: TeleBot):
         db.set_user_state(user_id, "WAITING_CONTRACT_SEARCH_ID")
         bot.send_message(
             call.message.chat.id,
-            "🔍 **جست‌وجوی قرارداد**\n\nلطفاً شناسه قرارداد (مثلاً `MJ-1234`) را وارد کنید:",
+            "🔍 **جستجوی هوشمند قرارداد**\n\n"
+            "لطفاً **کد رهگیری (شناسه معامله)**، **عنوان** یا **نام طرف مقابل** را وارد کنید:",
             parse_mode="Markdown",
             reply_markup=kb.get_cancel_keyboard()
         )
@@ -1769,23 +1770,58 @@ def register_user_handlers(bot: TeleBot):
     @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_CONTRACT_SEARCH_ID")
     def handle_contracts_search_id(message: Message):
         user_id = message.from_user.id
-        contract_id = message.text.strip().upper()
+        query = message.text.strip().lower()
         
-        # پاکسازی حالت
         db.clear_user_state(user_id)
         
-        contract = db.get_contract(contract_id)
-        if not contract:
-            bot.send_message(message.chat.id, "❌ قراردادی با این شناسه یافت نشد.", reply_markup=kb.get_main_menu())
+        if not query or query in ["❌ انصراف", "/cancel", "🔙 انصراف و بازگشت"]:
+            bot.send_message(message.chat.id, "❌ جستجو لغو شد.", reply_markup=kb.get_main_menu())
             return
-            
-        # بررسی دسترسی (فقط طرفین قرارداد یا ادمین)
-        if contract.get("buyer_id") != user_id and contract.get("seller_id") != user_id:
-            bot.send_message(message.chat.id, "🚫 شما دسترسی به این قرارداد را ندارید.", reply_markup=kb.get_main_menu())
+
+        contracts = db.get_user_contracts(user_id)
+        if not contracts:
+            bot.send_message(message.chat.id, "📜 شما هیچ معامله‌ای ثبت نکرده‌اید.", reply_markup=kb.get_main_menu())
             return
+
+        matching = []
+        for c in contracts:
+            cid = str(c.get("contract_id") or c.get("id") or "").lower()
+            title = str(c.get("title") or "").lower()
             
-        # نمایش قرارداد
-        _show_contract_details(message.chat.id, contract_id, user_id)
+            other_uid = c.get("seller_id") if c.get("buyer_id") == user_id else c.get("buyer_id")
+            other_name = ""
+            if other_uid:
+                u_info = db.get_user(other_uid)
+                if u_info:
+                    other_name = str(u_info.get("full_name") or u_info.get("username") or "").lower()
+            
+            buyer_fn = str(c.get("buyer_fullname") or "").lower()
+            seller_fn = str(c.get("seller_fullname") or "").lower()
+
+            if (query in cid) or (query in title) or (query in other_name) or (query in buyer_fn) or (query in seller_fn):
+                matching.append(c)
+
+        if not matching:
+            bot.send_message(
+                message.chat.id,
+                f"❌ هیچ قراردادی با مشخصات **«{message.text.strip()}»** یافت نشد.\n\nلطفاً دوباره تلاش کنید.",
+                parse_mode="Markdown",
+                reply_markup=kb.get_main_menu()
+            )
+            return
+
+        if len(matching) == 1:
+            cid = matching[0].get("contract_id") or matching[0].get("id")
+            _show_contract_details(message.chat.id, cid, user_id)
+            return
+
+        bot.send_message(
+            message.chat.id,
+            f"🔍 **نتایج جستجو ({len(matching)} مورد یافت شد):**\n*(جدیدترین نتیجه در پایین‌ترین پیام نزدیک به کیبورد قرار دارد)*",
+            parse_mode="Markdown"
+        )
+        for c in matching[:5][::-1]:
+            render_contract_card(message.chat.id, user_id, c)
 
     @bot.callback_query_handler(func=lambda call: call.data.startswith("contracts_cat:"))
     def handle_contracts_category(call: CallbackQuery):
