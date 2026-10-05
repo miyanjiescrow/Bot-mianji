@@ -1805,8 +1805,9 @@ def register_user_handlers(bot: TeleBot):
         bot.answer_callback_query(call.id)
         
         if category == "drafts":
-            bot.send_message(call.message.chat.id, "📁 **پیش‌نویس‌های ذخیره‌شده شما:**\n(این پیش‌نویس‌ها تا یک ماه ذخیره و سپس به‌صورت خودکار پاک می‌شوند)")
-            for d in filtered:
+            bot.send_message(call.message.chat.id, "📁 **۳ پیش‌نویس آخر شما:**\n*(جدیدترین پیش‌نویس نزدیک‌ترین پیام به کیبورد است)*")
+            latest_3_drafts = filtered[:3][::-1]
+            for d in latest_3_drafts:
                 cid = d.get("contract_id") or d.get("id")
                 title = d.get("title", "بدون عنوان")
                 amount = utils.format_currency(d.get("amount", 0))
@@ -1826,13 +1827,7 @@ def register_user_handlers(bot: TeleBot):
         }
         label = cat_labels.get(category, "نامشخص")
         
-        header_text = f"📑 **لیست معاملات شما ({label}):**"
-        if category == "pending":
-            header_text = (
-                "⏳ **معاملات در انتظار اقدام**\n\n"
-                "در این بخش معامله‌هایی که نیاز به واکنش شما دارند (**امضا، پرداخت، تحویل یا تایید**) نمایش داده می‌شوند.\n"
-                "لطفاً با کلیک بر روی دکمه‌های هر معامله، مراحل آن را پیش ببرید."
-            )
+        header_text = f"📑 **۳ معامله آخر شما ({label}):**\n*(جدیدترین معامله در پایین‌ترین پیام نزدیک به کیبورد قرار دارد)*"
 
         try:
             bot.edit_message_text(
@@ -1848,7 +1843,11 @@ def register_user_handlers(bot: TeleBot):
                 parse_mode="Markdown"
             )
         
-        send_contracts_page(call.message.chat.id, user_id, filtered, 0, category)
+        # گرفتن ۳ معامله آخر (جدیدترین‌ها) و معکوس کردن ترتیب آن‌ها
+        # تا جدیدترین معامله (آخرین ساخته شده) نزدیک‌ترین پیام به کیبورد باشد
+        latest_3 = filtered[:3][::-1]
+        for c in latest_3:
+            render_contract_card(call.message.chat.id, user_id, c)
 
     @bot.callback_query_handler(func=lambda call: call.data.startswith("resume_draft_"))
     def handle_resume_draft(call: CallbackQuery):
