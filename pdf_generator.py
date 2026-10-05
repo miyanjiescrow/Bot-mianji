@@ -341,14 +341,14 @@ def build_contract_pdf(contract_data: dict, buyer_user: dict = None, seller_user
         if not c_phone and u: c_phone = u.get("phone_number")
         
         uid = str(u.get("id") if u else contract_data.get(f"{role_type}_id", "---"))
-        ip = str(u.get("registration_ip") if u else "---")
+        c_ip = contract_data.get(f"{role_type}_ip") or (u.get("registration_ip") if u else None) or "127.0.0.1"
 
         return {
             "name": clean_markdown(str(c_name or "ناشناس")),
             "phone": str(c_phone or "ثبت نشده"),
             "id": str(c_nid or "---"),
             "uid": uid,
-            "ip": ip
+            "ip": str(c_ip)
         }
 
     buyer_info = get_party_display("buyer")

@@ -2942,9 +2942,8 @@ def register_user_handlers(bot: TeleBot):
         
         bot.send_message(
             message.chat.id,
-            f"✅ اطلاعات و IP شما در لحظه امضا ثبت شد.\n\n"
-            f"🔑 **کد تأیید آوای پی (Aveh Pay):** `{otp}`\n\n"
-            f"لطفاً جهت نهایی‌سازی امضا، کد فوق را وارد کنید:",
+            f"🔑 **کد تأیید امضای الکترونیک (OTP):** `{otp}`\n\n"
+            f"لطفاً جهت نهایی‌سازی و تأیید امضا، کد فوق را ارسال کنید:",
             parse_mode="Markdown",
             reply_markup=kb.get_cancel_keyboard()
         )
@@ -2972,70 +2971,132 @@ def register_user_handlers(bot: TeleBot):
         _, data = db.get_user_state(user_id)
         
         if not data or text != data.get("otp"):
-            bot.send_message(message.chat.id, "❌ کد وارد شده اشتباه است.")
+            bot.send_message(message.chat.id, "❌ کد تأیید (OTP) وارد شده اشتباه است. لطفاً دوباره وارد کنید:")
             return
         
-        cid = data.get("contract_id")
-        contract = db.get_contract(cid)
         db.clear_user_state(user_id)
-        _execute_contract_signature(bot, message, user_id, cid, contract, otp_code=text)
+        _execute_contract_signature(bot, message, user_id, data, otp_code=text)
 
-    def _execute_contract_signature(bot, message_or_call, user_id, cid, contract, otp_code):
-        """اجرای نهایی امضا (بعد از تایید هویت و OTP)"""
-        if not contract: return
-        
+    def _execute_contract_signature(bot, message_or_call, user_id, data, otp_code):
+        """اجرای نهایی امضا (بعد از تایید OTP) بدون نیاز به دریافت شماره تلفن"""
         user_info = db.get_user(user_id) or {}
         full_name = user_info.get("full_name") or f"کاربر {user_id}"
         national_id = user_info.get("national_id", "")
-        phone = user_info.get("phone_number", "")
-        
-        updates = {}
         now = datetime.now(timezone.utc).isoformat()
+        chat_id = message_or_call.chat.id if hasattr(message_or_call, 'chat') else message_or_call.message.chat.id
+
+        cid = data.get("contract_id")
+        draft = data.get("contract_draft")
+        client_ip = data.get("client_ip", "127.0.0.1")
+
+        # الف) اگر سازنده معامله است و قرارداد هنوز ایجاد نشده (از روی پیش‌نویس)
+        if draft and not cid:
+            role = draft.get("role", "employer")
+            buyer_id = user_id if role == "employer" else None
+            seller_id = user_id if role == "freelancer" else None
+            category = draft.get("category", "GEN")
+            cid = utils.generate_archive_contract_id(category)
+            
+            payload = {
+                "contract_id": cid,
+                "title": draft.get("title"),
+                "amount": draft.get("amount"),
+                "deadline": draft.get("deadline", 1),
+                "description": draft.get("description", ""),
+                "category": category,
+                "created_by": user_id,
+                "creator_id": user_id,
+                "milestones": draft.get("milestones", []),
+                "staged_payment": bool(draft.get("staged_payment")),
+                "recurring": bool(draft.get("recurring")),
+                "buyer_id": buyer_id,
+                "seller_id": seller_id,
+                "buyer_signed_at": now if role == "employer" else None,
+                "seller_signed_at": now if role == "freelancer" else None,
+                "buyer_otp_verified": True if role == "employer" else False,
+                "seller_otp_verified": True if role == "freelancer" else False,
+                "buyer_otp_code": otp_code if role == "employer" else None,
+                "seller_otp_code": otp_code if role == "freelancer" else None,
+                "buyer_fullname": full_name if role == "employer" else None,
+                "seller_fullname": full_name if role == "freelancer" else None,
+                "buyer_national_id": national_id if role == "employer" else None,
+                "seller_national_id": national_id if role == "freelancer" else None,
+                "buyer_ip": client_ip if role == "employer" else None,
+                "seller_ip": client_ip if role == "freelancer" else None,
+                "status": "pending_approval"
+            }
+            contract = db.create_contract(payload)
+            if not contract:
+                bot.send_message(chat_id, "❌ خطا در ایجاد قرارداد در دیتابیس.")
+                return
+                
+            bot_username = getattr(config, 'BOT_USERNAME', 'MiyanjiBot')
+            share_link = f"https://t.me/{bot_username}?start=c_{cid}"
+            is_admin = (user_id == getattr(config, 'ADMIN_ID', 0) or user_id in getattr(config, 'ADMIN_IDS', []))
+            
+            utils.send_celebration(
+                bot,
+                chat_id,
+                f"✨ **امضای شما با موفقیت ثبت شد** ✨\n\n"
+                f"📄 قرارداد شماره `{cid}` ایجاد گردید.\n\n"
+                f"🔗 **لینک امضا و دعوت طرف دوم:**\n`{share_link}`\n\n"
+                f"💡 این لینک را برای طرف دوم ارسال کنید تا قرارداد را امضا کند.",
+                reply_markup=kb.get_main_menu(is_admin)
+            )
+            return
+
+        # ب) اگر قرارداد از قبل وجود دارد (امضای طرف دوم یا تکمیل امضا)
+        contract = db.get_contract(cid)
+        if not contract:
+            bot.send_message(chat_id, "❌ معامله یافت نشد.")
+            return
+
         is_buyer = contract.get("buyer_id") == user_id
         is_seller = contract.get("seller_id") == user_id
         
+        updates = {}
         if is_buyer or (not contract.get("buyer_id") and contract.get("seller_id") != user_id):
             updates["buyer_otp_verified"] = True
             updates["buyer_signed_at"] = now
             updates["buyer_otp_code"] = otp_code
             updates["buyer_fullname"] = full_name
             updates["buyer_national_id"] = national_id
-            if not contract.get("buyer_id"): 
+            updates["buyer_ip"] = client_ip
+            if not contract.get("buyer_id"):
                 updates["buyer_id"] = user_id
-                is_buyer = True
         elif is_seller or (not contract.get("seller_id") and contract.get("buyer_id") != user_id):
             updates["seller_otp_verified"] = True
             updates["seller_signed_at"] = now
             updates["seller_otp_code"] = otp_code
             updates["seller_fullname"] = full_name
             updates["seller_national_id"] = national_id
-            if not contract.get("seller_id"): 
+            updates["seller_ip"] = client_ip
+            if not contract.get("seller_id"):
                 updates["seller_id"] = user_id
-                is_seller = True
 
         contract.update(updates)
         both_signed = bool(contract.get("buyer_id") and contract.get("seller_id"))
-
         updates["status"] = "awaiting_payment" if both_signed else contract.get("status", "pending_approval")
+        
         db.update_contract(cid, updates)
         contract.update(updates)
-
-        # بجای نهایی‌سازی مستقیم، مرحله دریافت شماره تماس را اضافه می‌کنیم
-        data = {
-            "contract_id": cid,
-            "both_signed": both_signed,
-            "contract_snapshot": contract,
-            "is_creator": False
-        }
-        db.set_user_state(user_id, "WAITING_SIGN_PHONE", data)
-
-        chat_id = message_or_call.chat.id if hasattr(message_or_call, 'chat') else message_or_call.message.chat.id
-        bot.send_message(
+        
+        is_admin = (user_id == getattr(config, 'ADMIN_ID', 0) or user_id in getattr(config, 'ADMIN_IDS', []))
+        utils.send_celebration(
+            bot,
             chat_id,
-            "✅ امضای شما با تایید OTP ثبت شد.\n\n"
-            "📞 جهت درج در قرارداد، لطفاً شماره تماس خود را **فقط** از طریق دکمه زیر ارسال کنید:",
-            reply_markup=kb.get_phone_sign_keyboard()
+            "✨ **امضای شما با موفقیت ثبت شد** ✨\n\n✅ فرآیند امضا به پایان رسید.",
+            reply_markup=kb.get_main_menu(is_admin)
         )
+        
+        if both_signed:
+            _finalize_both_signed(bot, cid, contract)
+        else:
+            notify_other_party(
+                bot, contract, user_id,
+                f"✍️ طرف مقابل معامله شماره `{cid}` را امضا کرد.\n"
+                "برای مشاهده و تایید نهایی، از «📜 معاملات من» وارد شوید."
+            )
 
     @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_SIGN_PHONE", content_types=['text', 'contact'])
     def handle_sign_phone(message: Message):
