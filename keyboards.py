@@ -306,9 +306,9 @@ def get_kyc_phone_keyboard() -> ReplyKeyboardMarkup:
     return markup
 
 def get_phone_sign_keyboard() -> ReplyKeyboardMarkup:
-    """کیبورد ارسال شماره جهت امضای الکترونیک"""
+    """کیبورد تایید جهت امضای الکترونیک"""
     markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-    markup.add(KeyboardButton("📱 ارسال شماره جهت ثبت امضا", request_contact=True))
+    markup.add(KeyboardButton("✅ تایید می‌کنم"))
     markup.add(KeyboardButton("❌ انصراف و بازگشت به منو"))
     return markup
 

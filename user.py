@@ -1235,14 +1235,12 @@ def register_user_handlers(bot: TeleBot):
                 bot.send_message(call.message.chat.id, text, parse_mode="Markdown", reply_markup=kb.get_cancel_keyboard())
             return
 
-        # اگر همه چیز اوکی بود -> نمایش پیام امضا (دکمه کنتاکت)
+        # اگر همه چیز اوکی بود -> درخواست تایید امضا
         sign_text = (
             "✍️ **امضای قانونی و الکترونیک قرارداد**\n\n"
-            "طبق مواد ۶، ۷ و ۱۲ قانون تجارت الکترونیک، جهت رسمیت یافتن سند و غیرقابل انکار بودن آن، "
-            "ارسال شماره اکانت تلگرام الزامی است.\n\n"
-            "لطفاً جهت ثبت امضا روی دکمه زیر کلیک کنید:"
+            "لطفاً جهت تایید و امضای الکترونیک قرارداد، دکمه «✅ تایید می‌کنم» را لمس کنید:"
         )
-        db.set_user_state(user_id, "WAITING_SIGN_PHONE", state_data)
+        db.set_user_state(user_id, "WAITING_SIGN_CONFIRM", state_data)
 
         try:
             bot.edit_message_text(sign_text, call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=kb.get_phone_sign_keyboard())
@@ -2876,27 +2874,8 @@ def register_user_handlers(bot: TeleBot):
             )
             return
 
-        # همه اطلاعات موجود است -> ارسال OTP
-        _send_signing_otp(bot, call.message.chat.id, user_id, cid)
-
-    def _send_signing_otp(bot, chat_id, user_id, cid):
-        import random
-        otp = str(random.randint(100000, 999999))
-        # دریافت دیتای قبلی اگر وجود دارد
-        _, data = db.get_user_state(user_id)
-        if not data or not isinstance(data, dict): data = {}
-        data.update({"contract_id": cid, "otp": otp})
-        db.set_user_state(user_id, "WAITING_SIGNATURE_OTP", data)
-        
-        bot.send_message(
-            chat_id,
-            f"🔐 **تایید امضای قرارداد**\n\n"
-            f"🔐 **تایید امضای قرارداد `{cid}`**\n\nکد تایید را وارد کنید:"
-            f"`{otp}`\n\n"
-            f"⚠️ با وارد کردن این کد، شما تمام شرایط قرارداد و قوانین پلتفرم را می‌پذیرید.",
-            parse_mode="Markdown",
-            reply_markup=kb.get_cancel_keyboard()
-        )
+        # همه اطلاعات موجود است -> درخواست تایید امضا
+        _go_to_signing_confirm(bot, call.message.chat.id, user_id, state_data)
 
     @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_SIGN_FULLNAME")
     def handle_sign_fullname(message: Message):
@@ -2919,10 +2898,7 @@ def register_user_handlers(bot: TeleBot):
             db.set_user_state(user_id, "WAITING_SIGN_NATIONAL_ID", data)
             bot.send_message(message.chat.id, "🪪 بسیار عالی. حالا کد ملی ۱۰ رقمی خود را وارد کنید:")
         else:
-            if data.get("is_creator"):
-                _go_to_creator_phone_capture(bot, message.chat.id, user_id, data)
-            else:
-                _send_signing_otp(bot, message.chat.id, user_id, data.get("contract_id"))
+            _go_to_signing_confirm(bot, message.chat.id, user_id, data)
 
     def _go_to_creator_phone_capture(bot, chat_id, user_id, data):
         sign_text = (
@@ -2953,10 +2929,7 @@ def register_user_handlers(bot: TeleBot):
         # اگر کد ملی تست وارد شد، کاربر را به عنوان تایید شده علامت بزن
         is_verified = (national_id == "1234567890")
         db.update_user_identity(user_id, national_id=national_id, is_verified=is_verified) # بروزرسانی در دیتابیس
-        if data.get("is_creator"):
-            _go_to_creator_phone_capture(bot, message.chat.id, user_id, data)
-        else:
-            _send_signing_otp(bot, message.chat.id, user_id, data.get("contract_id"))
+        _go_to_signing_confirm(bot, message.chat.id, user_id, data)
 
     @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_SIGNATURE_OTP")
     def process_signature_otp(message: Message):
