@@ -232,7 +232,9 @@ def _get_main_menu_for_user(user_id: int, is_admin: bool = False):
 
 
 def _get_contract_category_logic(status: str) -> str:
-    """دسته‌بندی وضعیت‌های مختلف در ۴ گروه اصلی برای منوی «معاملات من»"""
+    """دسته‌بندی وضعیت‌های مختلف در گروه‌های اصلی برای منوی «معاملات من»"""
+    if status == "draft":
+        return "drafts"
     if status in ["active", "in_progress", "paid"]:
         return "active"
     if status in ["pending_approval", "awaiting_payment", "pending_payment", "awaiting_receipt_approval", "awaiting_extra_edit_receipt", "receipt_submitted", "delivered", "work_submitted", "disputed", "in_dispute", "awaiting_edit_price", "bargaining"]:
@@ -245,7 +247,7 @@ def _get_contract_category_logic(status: str) -> str:
 
 
 def _get_contracts_stats(contracts: list) -> dict:
-    stats = {"active": 0, "pending": 0, "completed": 0, "cancelled": 0}
+    stats = {"active": 0, "pending": 0, "completed": 0, "cancelled": 0, "drafts": 0}
     for c in contracts:
         status = c.get("status")
         cat = _get_contract_category_logic(status)
@@ -350,12 +352,19 @@ def register_user_handlers(bot: TeleBot):
     @bot.message_handler(func=lambda msg: msg.text in ["🔙 انصراف و بازگشت", "❌ انصراف و بازگشت به منو", "❌ انصراف"])
     def handle_cancel(message: Message):
         if not maintenance_check(message): return
-        db.clear_user_state(message.from_user.id)
-        is_admin = (message.from_user.id == getattr(config, 'ADMIN_ID', 0) or message.from_user.id in getattr(config, 'ADMIN_IDS', []))
+        user_id = message.from_user.id
+        state_tuple = db.get_user_state(user_id)
+        state_data = state_tuple[1] if isinstance(state_tuple, tuple) and len(state_tuple) > 1 else {}
+        draft = state_data.get("contract_draft") if isinstance(state_data, dict) else None
+        if draft and isinstance(draft, dict) and draft.get("title"):
+            db.save_user_draft(user_id, draft)
+
+        db.clear_user_state(user_id)
+        is_admin = (user_id == getattr(config, 'ADMIN_ID', 0) or user_id in getattr(config, 'ADMIN_IDS', []))
         bot.send_message(
             message.chat.id,
-            "❌ عملیات لغو شد. به منوی اصلی بازگشتید.",
-            reply_markup=_get_main_menu_for_user(message.from_user.id, is_admin)
+            "❌ عملیات لغو شد. پیش‌نویس شما ذخیره گردید و به منوی اصلی بازگشتید.",
+            reply_markup=_get_main_menu_for_user(user_id, is_admin)
         )
 
     # ====================================================
@@ -1250,13 +1259,19 @@ def register_user_handlers(bot: TeleBot):
     @bot.callback_query_handler(func=lambda call: call.data == "cancel_draft")
     def cancel_draft_callback(call: CallbackQuery):
         user_id = call.from_user.id
+        state_tuple = db.get_user_state(user_id)
+        state_data = state_tuple[1] if isinstance(state_tuple, tuple) and len(state_tuple) > 1 else {}
+        draft = state_data.get("contract_draft") if isinstance(state_data, dict) else None
+        if draft and isinstance(draft, dict) and draft.get("title"):
+            db.save_user_draft(user_id, draft)
+
         db.clear_user_state(user_id)
         is_admin = (user_id == getattr(config, 'ADMIN_ID', 0) or user_id in getattr(config, 'ADMIN_IDS', []))
         
-        bot.answer_callback_query(call.id, "پیش‌نویس لغو شد.")
+        bot.answer_callback_query(call.id, "پیش‌نویس ذخیره شد.")
         bot.send_message(
             call.message.chat.id,
-            "❌ پیش‌نویس معامله لغو شد. به منوی اصلی بازگشتید.",
+            "📁 پیش‌نویس معامله در بخش «معاملات من > پیش‌نویس‌های من» ذخیره شد.",
             reply_markup=kb.get_main_menu(is_admin)
         )
 
@@ -1778,7 +1793,10 @@ def register_user_handlers(bot: TeleBot):
         category = call.data.split(":")[1]
         
         contracts = db.get_user_contracts(user_id)
-        filtered = [c for c in contracts if _get_contract_category_logic(c.get("status")) == category]
+        if category == "drafts":
+            filtered = [c for c in contracts if c.get("status") == "draft"]
+        else:
+            filtered = [c for c in contracts if _get_contract_category_logic(c.get("status")) == category and c.get("status") != "draft"]
         
         if not filtered:
             bot.answer_callback_query(call.id, "⚠️ معامله‌ای در این دسته یافت نشد.", show_alert=True)
@@ -1786,6 +1804,20 @@ def register_user_handlers(bot: TeleBot):
             
         bot.answer_callback_query(call.id)
         
+        if category == "drafts":
+            bot.send_message(call.message.chat.id, "📁 **پیش‌نویس‌های ذخیره‌شده شما:**\n(این پیش‌نویس‌ها تا یک ماه ذخیره و سپس به‌صورت خودکار پاک می‌شوند)")
+            for d in filtered:
+                cid = d.get("contract_id") or d.get("id")
+                title = d.get("title", "بدون عنوان")
+                amount = utils.format_currency(d.get("amount", 0))
+                text = (
+                    f"📝 **پیش‌نویس: {title}**\n"
+                    f"📌 شناسه: `{cid}`\n"
+                    f"💰 مبلغ: {amount} تومان"
+                )
+                bot.send_message(call.message.chat.id, text, parse_mode="Markdown", reply_markup=kb.get_draft_management_keyboard(cid))
+            return
+
         cat_labels = {
             "active": "🟢 در حال انجام",
             "pending": "⏳ در انتظار اقدام",
@@ -1817,6 +1849,48 @@ def register_user_handlers(bot: TeleBot):
             )
         
         send_contracts_page(call.message.chat.id, user_id, filtered, 0, category)
+
+    @bot.callback_query_handler(func=lambda call: call.data.startswith("resume_draft_"))
+    def handle_resume_draft(call: CallbackQuery):
+        cid = call.data.replace("resume_draft_", "", 1)
+        user_id = call.from_user.id
+        contract = db.get_contract(cid)
+        if not contract or contract.get("status") != "draft":
+            bot.answer_callback_query(call.id, "❌ پیش‌نویس یافت نشد.", show_alert=True)
+            return
+            
+        bot.answer_callback_query(call.id)
+        draft = {
+            "title": contract.get("title"),
+            "amount": contract.get("amount"),
+            "description": contract.get("description"),
+            "deadline": contract.get("deadline", 1),
+            "category": contract.get("category", "GEN"),
+            "milestones": contract.get("milestones", []),
+            "staged_payment": contract.get("staged_payment", False),
+            "recurring": contract.get("recurring", False),
+            "commission_payer": contract.get("commission_payer", "freelancer"),
+            "free_edits": contract.get("free_edits_total", 3),
+            "role": "employer" if contract.get("buyer_id") == user_id else "freelancer"
+        }
+        db.set_user_state(user_id, "WAITING_PREVIEW_CONFIRM", {"contract_draft": draft, "contract_id": cid})
+        bot.send_message(
+            call.message.chat.id,
+            f"🔄 **بارگذاری پیش‌نویس `{cid}`**\n\n" + build_draft_preview_text(draft),
+            parse_mode="Markdown",
+            reply_markup=kb.get_contract_preview_inline()
+        )
+
+    @bot.callback_query_handler(func=lambda call: call.data.startswith("delete_draft_"))
+    def handle_delete_draft(call: CallbackQuery):
+        cid = call.data.replace("delete_draft_", "", 1)
+        user_id = call.from_user.id
+        db.delete_user_draft(cid, user_id)
+        bot.answer_callback_query(call.id, "🗑 پیش‌نویس با موفقیت حذف شد.")
+        try:
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+        except Exception:
+            pass
 
     @bot.callback_query_handler(func=lambda call: call.data.startswith("contracts_more:"))
     def handle_contracts_more(call: CallbackQuery):

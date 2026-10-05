@@ -907,7 +907,15 @@ def get_ambassador_dashboard_stats(user_id: int) -> Dict[str, Any]:
 # ۳. مدیریت معاملات و وضعیت‌ها (Transactions / Contracts)
 # ====================================================
 # وضعیت‌های معتبر پروژه:
-# pending_payment, receipt_submitted, in_progress, work_submitted, completed, disputed, cancelled
+# pending_payment, receipt_submitted, in_progress, work_submitted, completed, disputed, cancelled, draft
+
+_BASE_COLUMNS_CONTRACTS = [
+    "id", "contract_id", "title", "amount", "description", "deadline", "category", "status",
+    "buyer_id", "seller_id", "creator_id", "buyer_phone", "seller_phone", "buyer_alt_phone", "seller_alt_phone",
+    "buyer_fullname", "seller_fullname", "buyer_national_id", "seller_national_id",
+    "buyer_signed_at", "seller_signed_at", "buyer_otp_verified", "seller_otp_verified",
+    "buyer_otp_code", "seller_otp_code", "buyer_ip", "seller_ip", "milestones", "staged_payment", "recurring", "history", "created_at"
+]
 
 def create_contract(
     creator_id: Union[int, Dict[str, Any]], 
@@ -1145,26 +1153,80 @@ def get_user_contracts(user_id: int) -> List[Dict[str, Any]]:
     if not supabase:
         return []
     try:
-        # استفاده از دو کوئری جداگانه به جای OR سنگین جهت استفاده بهینه از ایندکس‌ها
-        # این کار در Supabase/PostgreSQL بسیار سریع‌تر از فیلتر OR روی دو ستون مختلف است
         res_buyer = supabase.table("contracts").select("*").eq("buyer_id", user_id).order("created_at", desc=True).execute()
         res_seller = supabase.table("contracts").select("*").eq("seller_id", user_id).order("created_at", desc=True).execute()
+        res_creator = supabase.table("contracts").select("*").eq("creator_id", user_id).order("created_at", desc=True).execute()
         
-        contracts = (res_buyer.data or []) + (res_seller.data or [])
-        # حذف تکراری‌های احتمالی و مرتب‌سازی نهایی
+        contracts = (res_buyer.data or []) + (res_seller.data or []) + (res_creator.data or [])
+        
+        now_utc = datetime.now(timezone.utc)
+        valid_contracts = []
         seen_ids = set()
-        unique_contracts = []
         for c in contracts:
-            if c["id"] not in seen_ids:
-                unique_contracts.append(c)
-                seen_ids.add(c["id"])
-        
-        # مرتب‌سازی بر اساس تاریخ ایجاد (نزولی)
-        unique_contracts.sort(key=lambda x: x.get("created_at", ""), reverse=True)
-        return unique_contracts
+            if c["id"] in seen_ids:
+                continue
+            seen_ids.add(c["id"])
+            
+            # Auto delete drafts older than 30 days (1 month)
+            if c.get("status") == "draft":
+                created_str = c.get("created_at")
+                if created_str:
+                    try:
+                        created_dt = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
+                        if (now_utc - created_dt).total_seconds() > 30 * 24 * 3600:
+                            supabase.table("contracts").delete().eq("id", c["id"]).execute()
+                            continue
+                    except Exception:
+                        pass
+            valid_contracts.append(c)
+            
+        valid_contracts.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        return valid_contracts
     except Exception as e:
         logger.error(f"خطا در دریافت معاملات کاربر {user_id}: {e}")
         return []
+
+def save_user_draft(user_id: int, draft_data: dict, contract_id: str = None) -> Optional[Dict[str, Any]]:
+    if not supabase: return None
+    try:
+        category = draft_data.get("category", "GEN")
+        cid = contract_id or draft_data.get("contract_id") or utils.generate_archive_contract_id(category)
+        system_id = draft_data.get("system_id") or str(uuid.uuid4())
+        
+        payload = {
+            "id": system_id,
+            "contract_id": cid,
+            "title": draft_data.get("title", "پیش‌نویس بدون عنوان"),
+            "amount": utils.safe_float(draft_data.get("amount", 0)),
+            "description": draft_data.get("description", ""),
+            "deadline": int(float(draft_data.get("deadline", 1))),
+            "category": category,
+            "status": "draft",
+            "creator_id": user_id,
+            "buyer_id": user_id if draft_data.get("role") == "employer" else None,
+            "seller_id": user_id if draft_data.get("role") == "freelancer" else None,
+            "milestones": draft_data.get("milestones", []),
+            "staged_payment": bool(draft_data.get("staged_payment")),
+            "recurring": bool(draft_data.get("recurring")),
+            "commission_payer": draft_data.get("commission_payer", "freelancer"),
+            "free_edits_total": draft_data.get("free_edits", 3)
+        }
+        res = supabase.table("contracts").upsert(payload, on_conflict="contract_id").execute()
+        if res.data:
+            return res.data[0]
+        return payload
+    except Exception as e:
+        logger.error(f"Error saving user draft: {e}")
+        return None
+
+def delete_user_draft(contract_id: str, user_id: int) -> bool:
+    if not supabase: return False
+    try:
+        supabase.table("contracts").delete().eq("contract_id", contract_id).eq("creator_id", user_id).eq("status", "draft").execute()
+        return True
+    except Exception as e:
+        logger.error(f"Error deleting user draft {contract_id}: {e}")
+        return False
 
 def get_user_transactions(user_id: int, limit: int = 10) -> List[Dict[str, Any]]:
     """دریافت لیست تراکنش‌های اخیر کاربر"""

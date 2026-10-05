@@ -542,8 +542,6 @@ def get_withdrawal_action_inline(req_id) -> InlineKeyboardMarkup:
 def get_contracts_categories_keyboard(stats: dict) -> InlineKeyboardMarkup:
     """منوی دسته‌بندی معاملات بر اساس وضعیت"""
     markup = InlineKeyboardMarkup(row_width=2)
-    # 🟢 درحال انجام (۲) | ⏳ در انتظار اقدام (۱)
-    # 🏁 تکمیل شده (۵) | ❌ لغوشده / مرجوعی
     markup.add(
         InlineKeyboardButton(f"🟢 درحال انجام ({stats.get('active', 0)})", callback_data="contracts_cat:active"),
         InlineKeyboardButton(f"⏳ در انتظار اقدام ({stats.get('pending', 0)})", callback_data="contracts_cat:pending")
@@ -553,9 +551,19 @@ def get_contracts_categories_keyboard(stats: dict) -> InlineKeyboardMarkup:
         InlineKeyboardButton(f"❌ لغوشده / مرجوعی ({stats.get('cancelled', 0)})", callback_data="contracts_cat:cancelled")
     )
     markup.add(
-        InlineKeyboardButton("🔍 جست‌وجوی قرارداد با شناسه", callback_data="contracts_search"),
-        InlineKeyboardButton("⬅️ بازگشت به منو", callback_data="back_to_menu")
+        InlineKeyboardButton(f"📁 پیش‌نویس‌های من ({stats.get('drafts', 0)})", callback_data="contracts_cat:drafts"),
+        InlineKeyboardButton("🔍 جست‌وجوی قرارداد با شناسه", callback_data="contracts_search")
     )
+    markup.add(InlineKeyboardButton("⬅️ بازگشت به منو", callback_data="back_to_menu"))
+    return markup
+
+def get_draft_management_keyboard(contract_id: str) -> InlineKeyboardMarkup:
+    markup = InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        InlineKeyboardButton("🚀 تکمیل و امضا", callback_data=f"resume_draft_{contract_id}"),
+        InlineKeyboardButton("🗑 حذف پیش‌نویس", callback_data=f"delete_draft_{contract_id}")
+    )
+    markup.add(InlineKeyboardButton("🔙 بازگشت به لیست معاملات", callback_data="contracts_cat:drafts"))
     return markup
 
 def get_contract_action_keyboard(contract_id: str, user_role: str, status: str, has_milestones: bool = False, staged_payment: bool = False, show_terms_button: bool = True, contract: dict = None) -> InlineKeyboardMarkup:
