@@ -474,39 +474,14 @@ def update_user_phone(user_id: int, phone_number: str) -> bool:
 
 def update_user_identity(user_id: int, full_name: str = None, national_id: str = None, first_name_real: str = None, last_name_real: str = None, is_verified: bool = None) -> bool:
     """
-    بروزرسانی اطلاعات احراز هویت کاربر (نام کامل، کد ملی، نام و فامیل تفکیک شده، وضعیت تایید).
+    بروزرسانی اطلاعات احراز هویت کاربر (نام کامل، کد ملی، وضعیت تایید).
     """
     if not supabase:
         return False
     try:
         update_data: Dict[str, Any] = {}
-        
-        if first_name_real:
-            update_data["first_name_real"] = first_name_real.strip()
-        if last_name_real:
-            update_data["last_name_real"] = last_name_real.strip()
-            
-        # اگر نام و فامیل جدید داریم، نام نمایشی (full_name) را هم بروزرسانی کنیم
-        if first_name_real or last_name_real:
-            # دریافت اطلاعات فعلی برای تکمیل نام
-            current = get_user(user_id) or {}
-            f = first_name_real.strip() if first_name_real else (current.get("first_name_real") or "")
-            l = last_name_real.strip() if last_name_real else (current.get("last_name_real") or "")
-            if f or l:
-                update_data["full_name"] = f"{f} {l}".strip()
-
-        if full_name and full_name.strip() and "full_name" not in update_data:
+        if full_name and full_name.strip():
             update_data["full_name"] = full_name.strip()
-            # تفکیک خودکار در صورت عدم ارسال جداگانه
-            if not first_name_real or not last_name_real:
-                parts = full_name.strip().split(maxsplit=1)
-                if len(parts) == 2:
-                    update_data["first_name_real"] = parts[0]
-                    update_data["last_name_real"] = parts[1]
-                else:
-                    update_data["first_name_real"] = full_name.strip()
-                    update_data["last_name_real"] = ""
-
         if national_id and national_id.strip():
             update_data["national_id"] = national_id.strip()
         if is_verified is not None:
@@ -518,7 +493,6 @@ def update_user_identity(user_id: int, full_name: str = None, national_id: str =
         res = supabase.table("users").update(update_data).eq("id", user_id).execute()
         _clear_user_cache(user_id)
         if not res.data:
-            # اگر آپدیت رکورد پیدا نکرد، تلاش برای درج (Upsert) می‌کنیم
             update_data["id"] = user_id
             res = supabase.table("users").upsert(update_data).execute()
             if not res.data:
@@ -548,27 +522,15 @@ def get_user(user_id: int) -> Optional[Dict[str, Any]]:
     if user_id in _user_info_cache:
         cached = _user_info_cache[user_id]
         last_upd = _user_info_last_update.get(user_id, datetime.min)
-        if (now - last_upd).total_seconds() < 300 and cached.get("telegram_id") == user_id and cached.get("is_verified"):
+        if (now - last_upd).total_seconds() < 300:
             return cached
 
     if not supabase:
         return None
     try:
-        # جستجو بر اساس telegram_id فعال
-        res = supabase.table("users").select("*").eq("telegram_id", user_id).execute()
+        res = supabase.table("users").select("*").eq("id", user_id).execute()
         if res.data:
             user_data = res.data[0]
-            _user_info_cache[user_id] = user_data
-            _user_info_last_update[user_id] = now
-            return user_data
-        
-        # بررسی رکورد قدیمی که ممکن است log out شده باشد
-        res_id = supabase.table("users").select("*").eq("id", user_id).execute()
-        if res_id.data:
-            user_data = res_id.data[0]
-            if user_data.get("telegram_id") is None or user_data.get("telegram_id") != user_id:
-                _user_info_cache.pop(user_id, None)
-                return None
             _user_info_cache[user_id] = user_data
             _user_info_last_update[user_id] = now
             return user_data

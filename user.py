@@ -2900,19 +2900,53 @@ def register_user_handlers(bot: TeleBot):
         else:
             _go_to_signing_confirm(bot, message.chat.id, user_id, data)
 
-    def _go_to_creator_phone_capture(bot, chat_id, user_id, data):
+    def _go_to_signing_confirm(bot, chat_id, user_id, data):
+        db.set_user_state(user_id, "WAITING_SIGN_CONFIRM", data)
         sign_text = (
             "✍️ **امضای قانونی و الکترونیک قرارداد**\n\n"
-            "طبق مواد ۶، ۷ و ۱۲ قانون تجارت الکترونیک، جهت رسمیت یافتن سند و غیرقابل انکار بودن آن، "
-            "ارسال شماره اکانت تلگرام الزامی است.\n\n"
-            "لطفاً جهت ثبت امضا روی دکمه زیر کلیک کنید:"
+            "لطفاً جهت تأیید و امضای الکترونیک قرارداد، روی دکمه «✅ تایید می‌کنم» کلیک کنید:"
         )
-        db.set_user_state(user_id, "WAITING_SIGN_PHONE", data)
         bot.send_message(
             chat_id,
             sign_text,
             parse_mode="Markdown",
             reply_markup=kb.get_phone_sign_keyboard()
+        )
+
+    @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_SIGN_CONFIRM")
+    def handle_sign_confirm(message: Message):
+        user_id = message.from_user.id
+        text = message.text.strip() if message.text else ""
+        if text == "❌ انصراف و بازگشت به منو":
+            db.clear_user_state(user_id)
+            is_admin = (user_id == getattr(config, 'ADMIN_ID', 0) or user_id in getattr(config, 'ADMIN_IDS', []))
+            bot.send_message(message.chat.id, "❌ فرآیند امضا لغو شد.", reply_markup=kb.get_main_menu(is_admin))
+            return
+            
+        if text != "✅ تایید می‌کنم":
+            bot.send_message(message.chat.id, "❌ لطفاً برای تأیید امضا روی دکمه «✅ تایید می‌کنم» کلیک کنید.", reply_markup=kb.get_phone_sign_keyboard())
+            return
+            
+        _, data = db.get_user_state(user_id)
+        if not data:
+            db.clear_user_state(user_id)
+            return
+            
+        import random
+        otp = "".join([str(random.randint(0, 9)) for _ in range(6)])
+        data["otp"] = otp
+        data["client_ip"] = "127.0.0.1"
+        data["signed_at_timestamp"] = datetime.now(timezone.utc).isoformat()
+        
+        db.set_user_state(user_id, "WAITING_SIGNATURE_OTP", data)
+        
+        bot.send_message(
+            message.chat.id,
+            f"✅ اطلاعات و IP شما در لحظه امضا ثبت شد.\n\n"
+            f"🔑 **کد تأیید آوای پی (Aveh Pay):** `{otp}`\n\n"
+            f"لطفاً جهت نهایی‌سازی امضا، کد فوق را وارد کنید:",
+            parse_mode="Markdown",
+            reply_markup=kb.get_cancel_keyboard()
         )
 
     @bot.message_handler(func=lambda msg: db.get_user_state(msg.from_user.id)[0] == "WAITING_SIGN_NATIONAL_ID")
