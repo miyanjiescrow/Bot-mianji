@@ -917,6 +917,20 @@ _BASE_COLUMNS_CONTRACTS = [
     "buyer_otp_code", "seller_otp_code", "buyer_ip", "seller_ip", "milestones", "staged_payment", "recurring", "history", "created_at"
 ]
 
+def _enrich_contract(c: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    if not c: return c
+    c.setdefault("deadline", 1)
+    c.setdefault("description", c.get("title", ""))
+    c.setdefault("milestones", [])
+    c.setdefault("history", [])
+    c.setdefault("delivery_files", [])
+    c.setdefault("buyer_otp_verified", False)
+    c.setdefault("seller_otp_verified", False)
+    c.setdefault("staged_payment", False)
+    c.setdefault("recurring", False)
+    c.setdefault("commission_payer", "freelancer")
+    return c
+
 def create_contract(
     creator_id: Union[int, Dict[str, Any]], 
     role: Optional[str] = None, 
@@ -930,7 +944,6 @@ def create_contract(
         return None
 
     try:
-        # اگر ورودی اول دیکشنری بود، آن را به عنوان داده اصلی قرارداد در نظر می‌گیریم
         if isinstance(creator_id, dict):
             contract_data = creator_id
             creator_id = contract_data.get("creator_id") or contract_data.get("created_by")
@@ -948,16 +961,11 @@ def create_contract(
                 "creator_id": creator_id
             }
 
-        # آماده‌سازی و پاکسازی داده‌ها
         title_val = str(contract_data.get("title", "بدون عنوان"))
         category = str(contract_data.get("category", "GEN"))
         cid = str(contract_data.get("contract_id") or contract_data.get("id") or utils.generate_archive_contract_id(category))
-        
-        # شناسه سیستمی منحصر به فرد (UUID) برای فیلد id
-        # این کار باعث می‌شود اگر contract_id تکراری (در ماه جاری) تولید شد، حداقل در فیلد PK تداخل نداشته باشیم
         system_id = str(uuid.uuid4())
 
-        # پارس کردن مهلت تحویل به صورت عدد صحیح (برای جلوگیری از خطای دیتابیس)
         raw_deadline = contract_data.get("deadline", 1)
         try:
             deadline_val = int(float(utils.fa_to_en_digits(str(raw_deadline))))
@@ -980,7 +988,6 @@ def create_contract(
         seller_val = contract_data.get("seller_id")
         creator_val = contract_data.get("creator_id")
 
-        # اصلاح: اطمینان از وجود کاربران در جدول users برای جلوگیری از خطای Foreign Key
         for uid in [buyer_val, seller_val, creator_val]:
             if uid:
                 try:
@@ -988,7 +995,6 @@ def create_contract(
                 except:
                     pass
 
-        # ۱. تلاش اول: پکیج کامل (مدرن)
         full_payload = {
             "id": system_id,
             "contract_id": cid,
@@ -1003,29 +1009,38 @@ def create_contract(
             "creator_id": int(creator_val) if creator_val else None
         }
         
-        # افزودن فیلدهای اختیاری از لیست مرجع
         for f in _BASE_COLUMNS_CONTRACTS:
             if f in contract_data and f not in full_payload:
                 full_payload[f] = contract_data[f]
 
+        # Try insert full payload; if columns don't exist, fallback to core columns only
         try:
             res = supabase.table("contracts").insert(full_payload).execute()
-            if res.data: return res.data[0]
+            if res.data: return _enrich_contract(res.data[0])
         except Exception as e1:
             err_msg = str(e1).lower()
-            # اگر contract_id تکراری بود، قرارداد قبلی را برمی‌گردانیم
             if "duplicate" in err_msg or "23505" in err_msg:
                 existing = get_contract(cid)
-                if existing: return existing
+                if existing: return _enrich_contract(existing)
             
-            logger.error(f"🚨 [DB_CREATE_ERR_1] Contract {cid} failed: {e1}")
-            # تلاش دوم: فیلتر کردن دقیق بر اساس ستون‌های موجود در دیتابیس
+            logger.warning(f"⚠️ [DB_CREATE_FALLBACK] Full insert failed ({e1}), retrying with core columns...")
             try:
-                safe_payload = {k: v for k, v in full_payload.items() if k in _BASE_COLUMNS_CONTRACTS}
-                res = supabase.table("contracts").insert(safe_payload).execute()
-                if res.data: return res.data[0]
+                core_payload = {
+                    "id": system_id,
+                    "contract_id": cid,
+                    "title": title_val,
+                    "amount": amt,
+                    "status": str(contract_data.get("status", "pending_payment")),
+                    "category": category,
+                    "buyer_id": int(buyer_val) if buyer_val else None,
+                    "seller_id": int(seller_val) if seller_val else None,
+                    "milestones": contract_data.get("milestones", []),
+                    "history": contract_data.get("history", [])
+                }
+                res = supabase.table("contracts").insert(core_payload).execute()
+                if res.data: return _enrich_contract(res.data[0])
             except Exception as e2:
-                logger.error(f"🚨 [DB_CREATE_ERR_FINAL] Contract {cid} failed: {e2}")
+                logger.error(f"🚨 [DB_CREATE_ERR_FINAL] Contract {cid} failed: {e2}", exc_info=True)
                 raise e2
 
         return None
@@ -1071,7 +1086,7 @@ def get_contract(contract_id: str) -> Optional[Dict[str, Any]]:
             res_alt = supabase.table("contracts").select("*").eq("id", contract_id).execute()
             contract = res_alt.data[0] if res_alt.data else None
             
-        return contract
+        return _enrich_contract(contract)
 
     except Exception as e:
         logger.error(f"خطا در دریافت معامله {contract_id}: {e}")
@@ -1111,34 +1126,36 @@ def update_contract(
 
     def _apply(pl: Dict[str, Any]) -> bool:
         try:
-            # پاکسازی فیلدهای None برای جلوگیری از مشکلات احتمالی دیتابیس
             clean_pl = {k: v for k, v in pl.items() if v is not None}
             res = supabase.table("contracts").update(clean_pl).eq("contract_id", contract_id).execute()
             if res.data: return True
         except Exception as e:
-            logger.error(f"⚠️ [DB_UPDATE_ERR_1] Contract {contract_id} update failed: {e}")
-            pass
+            logger.warning(f"⚠️ [DB_UPDATE_FALLBACK] Update with all columns failed ({e}), retrying with core columns...")
+            try:
+                core_keys = {"contract_id", "title", "amount", "buyer_id", "seller_id", "status", "category", "milestones", "history", "delivery_files", "paid_at"}
+                core_pl = {k: v for k, v in clean_pl.items() if k in core_keys}
+                if core_pl:
+                    res = supabase.table("contracts").update(core_pl).eq("contract_id", contract_id).execute()
+                    if res.data: return True
+            except Exception as e_core:
+                logger.error(f"⚠️ [DB_UPDATE_ERR_CORE] Contract {contract_id} core update failed: {e_core}")
+
         try:
             res = supabase.table("contracts").update(clean_pl).eq("id", contract_id).execute()
             if res.data:
                 return True
             else:
-                logger.error(f"⚠️ [DB_UPDATE_ERR_2] No contract found with id/contract_id: {contract_id}")
                 return False
         except Exception as e:
             logger.error(f"⚠️ [DB_UPDATE_ERR_FINAL] Contract {contract_id} update failed: {e}")
             return False
 
     try:
-        # فیلتر کردن ستون‌ها بر اساس لیست مرجع برای امنیت زیرساخت
         safe_payload = {k: v for k, v in payload.items() if k in _BASE_COLUMNS_CONTRACTS}
         if not safe_payload:
-            return False
+            safe_payload = payload
             
         success = _apply(safe_payload)
-        if not success and safe_payload != payload:
-            # اگر با شکست مواجه شد و قبلاً فیلتر شده بود، لاگ می‌گیریم
-            logger.error(f"بروزرسانی قرارداد {contract_id} حتی با ستون‌های فیلتر شده شکست خورد.")
         return success
 
     except Exception as e:
@@ -1178,7 +1195,7 @@ def get_user_contracts(user_id: int) -> List[Dict[str, Any]]:
                             continue
                     except Exception:
                         pass
-            valid_contracts.append(c)
+            valid_contracts.append(_enrich_contract(c))
             
         valid_contracts.sort(key=lambda x: x.get("created_at", ""), reverse=True)
         return valid_contracts
